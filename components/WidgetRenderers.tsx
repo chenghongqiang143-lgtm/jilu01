@@ -1,0 +1,1007 @@
+
+import React, { useState, useRef, useEffect } from 'react';
+import { Widget, WidgetType, PlaylistItem, RatingItem, DataPoint, PlanQuestion, PlanRecords, NotebookItem } from '../types';
+import { Icons } from './Icons';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { format, differenceInDays, addDays, subDays, startOfWeek, isSameDay, isToday, eachDayOfInterval, addWeeks, subWeeks, endOfWeek } from 'date-fns';
+import { zhCN } from 'date-fns/locale';
+import { analyzeDataTrend } from '../services/geminiService';
+
+// --- Types ---
+
+export interface FullViewProps {
+    widget: Widget;
+    updateWidget: (w: Widget) => void;
+    isSelectionMode?: boolean;
+    setIsSelectionMode?: (b: boolean) => void;
+    allWidgets?: Widget[];
+}
+
+// --- Shared Constants ---
+// Updated Palette per user request
+const COLORS = [
+    '#000000', // Black
+    '#ffffff', // White
+    '#bbf7d0', // Green 200
+    '#34d399', // Emerald 400
+    '#fcd34d', // Amber 300
+    '#f87171', // Red 400
+    '#60a5fa', // Blue 400
+    '#bfdbfe'  // Blue 200
+];
+
+// Update light bg list to include the light ones from the new palette
+const LIGHT_BG_COLORS = [
+    '#ffffff', 
+    '#bbf7d0', 
+    '#fcd34d', 
+    '#bfdbfe',
+    // Legacy support
+    '#f1f5f9', '#e0f2fe', '#f3e8ff', '#fef3c7', '#d1fae5', '#ffe4e6', '#ddd6fe', '#e2e8f0', '#fca5a5', '#d8b4fe', '#fdba74', '#cbd5e1'
+];
+
+// --- Shared Components ---
+
+export const MinimalHeader: React.FC<{ icon: React.ReactNode, title: string, color?: string }> = ({ icon, title, color }) => (
+    <div className="mb-3 flex items-center gap-2">
+        <div className={`w-8 border-b-2 pb-1 ${color ? 'text-white border-white/40' : 'text-slate-900 border-slate-900'}`}>
+            {React.cloneElement(icon as React.ReactElement<any>, { size: 24, strokeWidth: 2.5 })}
+        </div>
+        <div className={`font-bold text-lg leading-tight truncate ${color ? 'text-white' : 'text-slate-900'}`}>{title}</div>
+    </div>
+);
+
+export const ExpandableTagStrip: React.FC<{
+    tags: string[];
+    selectedTag: string | null;
+    onSelect: (tag: string | null) => void;
+}> = ({ tags, selectedTag, onSelect }) => {
+    const [expanded, setExpanded] = useState(false);
+
+    if (tags.length === 0) {
+        return <div className="text-xs text-slate-300 py-1 pl-1">暂无标签...</div>;
+    }
+
+    return (
+        <div className="flex items-start gap-2 mb-2">
+            <div className={`flex-1 flex gap-2 ${expanded ? 'flex-wrap' : 'overflow-x-auto no-scrollbar'}`}>
+                <button 
+                    onClick={() => onSelect(null)}
+                    className={`whitespace-nowrap px-3 py-1 rounded-full text-xs font-medium transition-colors ${!selectedTag ? 'bg-[var(--primary-color)] text-white' : 'bg-white text-slate-600 border border-slate-200'}`}
+                >
+                    全部
+                </button>
+                {tags.map(tag => (
+                    <button 
+                        key={tag}
+                        onClick={() => onSelect(tag === selectedTag ? null : tag)}
+                        className={`whitespace-nowrap px-3 py-1 rounded-full text-xs font-medium transition-colors ${selectedTag === tag ? 'bg-[var(--primary-color)] text-white' : 'bg-white text-slate-600 border border-slate-200'}`}
+                    >
+                        #{tag}
+                    </button>
+                ))}
+            </div>
+            <button 
+                onClick={() => setExpanded(!expanded)}
+                className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full shrink-0 mt-0.5"
+            >
+                {expanded ? <Icons.ChevronUp size={16} /> : <Icons.ChevronDown size={16} />}
+            </button>
+        </div>
+    );
+};
+
+export const CategoryTabStrip: React.FC<{
+    categories: string[];
+    activeCategory: string | null; // null means "All"
+    onSelect: (cat: string | null) => void;
+    onAdd?: () => void;
+    onEdit?: (oldName: string, newName: string) => void;
+    onDelete?: (name: string) => void;
+}> = ({ categories, activeCategory, onSelect, onAdd, onEdit, onDelete }) => {
+    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const handleTouchStart = (cat: string) => {
+        if (!onEdit || !onDelete) return;
+        timerRef.current = setTimeout(() => {
+            const newName = prompt("编辑分类名称 (留空删除)", cat);
+            if (newName === null) return;
+            if (newName.trim() === "") {
+                if(confirm(`确定删除分类 "${cat}"?`)) onDelete(cat);
+            } else if (newName !== cat) {
+                onEdit(cat, newName);
+            }
+        }, 800);
+    };
+
+    const handleTouchEnd = () => {
+        if (timerRef.current) {
+            clearTimeout(timerRef.current);
+            timerRef.current = null;
+        }
+    };
+
+    return (
+        <div className="flex items-center gap-2 mb-4 w-full">
+             <div className="flex-1 overflow-x-auto no-scrollbar flex gap-2 pr-2 items-center">
+                <button
+                    onClick={() => onSelect(null)}
+                    className={`flex-none px-4 py-1.5 rounded-full text-xs font-bold transition select-none ${
+                        activeCategory === null
+                        ? 'bg-[var(--primary-color)] text-white shadow-md'
+                        : 'bg-white text-slate-500 border border-slate-200'
+                    }`}
+                >
+                    全部
+                </button>
+
+                {categories.map(cat => (
+                    <button
+                        key={cat}
+                        onClick={() => onSelect(cat)}
+                        onMouseDown={() => handleTouchStart(cat)}
+                        onMouseUp={handleTouchEnd}
+                        onMouseLeave={handleTouchEnd}
+                        onTouchStart={() => handleTouchStart(cat)}
+                        onTouchEnd={handleTouchEnd}
+                        className={`flex-none px-4 py-1.5 rounded-full text-xs font-bold transition select-none ${
+                            activeCategory === cat 
+                            ? 'bg-[var(--primary-color)] text-white shadow-md' 
+                            : 'bg-white text-slate-500 border border-slate-200'
+                        }`}
+                    >
+                        {cat}
+                    </button>
+                ))}
+                
+                {onAdd && (
+                    <button 
+                        onClick={onAdd}
+                        className="flex-none px-3 py-1.5 rounded-full text-xs font-bold bg-white text-slate-400 border border-dashed border-slate-300 hover:text-[var(--primary-color)] hover:border-[var(--primary-color)] transition flex items-center gap-1"
+                    >
+                        <Icons.Plus size={12} /> 新建
+                    </button>
+                )}
+             </div>
+        </div>
+    );
+};
+
+
+// --- Small Card Views (Preview) ---
+
+export const WidgetPreview: React.FC<{ widget: Widget }> = ({ widget }) => {
+  switch (widget.type) {
+    case WidgetType.LIST: {
+      const data = widget.data as { items: PlaylistItem[] };
+      const topItems = data.items.filter(i => !i.completed).slice(0, 3);
+      const remaining = data.items.filter(i => !i.completed).length - topItems.length;
+
+      return (
+        <div className="flex flex-col h-full justify-between p-4">
+          <MinimalHeader icon={<Icons.List />} title={widget.title} />
+          <div className="flex-1 flex flex-col justify-end space-y-2">
+             {topItems.length > 0 ? topItems.map(item => (
+                 <div key={item.id} className="flex items-center gap-2 text-slate-600">
+                     <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${item.starred ? 'bg-amber-400' : 'bg-slate-300'}`}></div>
+                     <span className="text-xs truncate font-medium">{item.title}</span>
+                 </div>
+             )) : (
+                 <div className="text-xs text-slate-300">暂无待办!</div>
+             )}
+             {remaining > 0 && <div className="text-[10px] text-slate-400 pl-3.5">还有 {remaining} 项</div>}
+          </div>
+        </div>
+      );
+    }
+    case WidgetType.RATING: {
+      const data = widget.data as { items: RatingItem[] };
+      const latest = data.items[0];
+      
+      if (latest && latest.cover) {
+        return (
+          <div className="absolute inset-0 flex flex-col">
+            <div className="h-[65%] relative overflow-hidden bg-slate-900">
+               <div 
+                 className="absolute inset-0 bg-cover bg-center opacity-60 blur-xl scale-150"
+                 style={{ backgroundImage: `url(${latest.cover})` }}
+               />
+               <div className="absolute inset-0 flex items-center justify-center p-4 z-10">
+                 <img 
+                   src={latest.cover} 
+                   alt={latest.title} 
+                   className="h-full w-auto max-w-full object-contain shadow-2xl rounded-sm"
+                 />
+               </div>
+            </div>
+            
+            <div className="h-[35%] bg-white px-4 flex flex-col justify-center z-20">
+               <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{latest.category}</div>
+               <div className="flex justify-between items-center">
+                 <div className="font-bold text-slate-900 text-base leading-tight truncate pr-2 flex-1">{latest.title}</div>
+                 <div className="flex items-center gap-1 text-amber-500 shrink-0">
+                   <span className="text-sm font-bold">{latest.rating}</span>
+                   <Icons.Rating size={12} fill="currentColor" />
+                 </div>
+               </div>
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div className="flex flex-col h-full justify-between p-4">
+            <MinimalHeader icon={<Icons.Rating />} title={widget.title} />
+            {latest ? (
+                <div>
+                     <div className="text-lg font-bold text-slate-800 line-clamp-2 leading-tight">{latest.title}</div>
+                     <div className="flex justify-between items-end mt-1">
+                        <div className="text-xs text-slate-500 truncate">{latest.category}</div>
+                        <div className="flex items-center gap-1 text-amber-500">
+                            <span className="text-xl font-bold">{latest.rating}</span>
+                            <Icons.Rating size={14} fill="currentColor" />
+                        </div>
+                     </div>
+                </div>
+            ) : (
+                <div className="flex-1 flex items-center justify-center text-slate-300 text-xs">暂无评分</div>
+            )}
+        </div>
+      );
+    }
+    case WidgetType.COUNTDOWN: {
+      const data = widget.data as { targetDate: string; eventName: string };
+      const daysLeft = differenceInDays(new Date(data.targetDate), new Date());
+      const isPast = daysLeft < 0;
+      const bgColor = widget.color || '#34d399';
+      const isLight = LIGHT_BG_COLORS.includes(bgColor.toLowerCase());
+      const textColor = isLight ? 'text-slate-900' : 'text-white';
+      
+      return (
+        <div className="absolute inset-0 p-4 flex flex-col justify-between" style={{ backgroundColor: bgColor }}>
+          <MinimalHeader icon={<Icons.Calendar />} title={data.eventName} color={isLight ? undefined : 'white'} />
+          <div>
+            <div className={`text-6xl font-black tracking-tighter leading-none mb-1 ${textColor}`}>
+              {Math.abs(daysLeft)}
+            </div>
+            <div className={`text-xs font-bold ${isLight ? 'text-slate-500' : 'text-white/60'}`}>
+              {isPast ? '已过去(天)' : '天后'}
+            </div>
+          </div>
+        </div>
+      );
+    }
+    case WidgetType.LAST_DONE: {
+      const data = widget.data as { lastDate: number };
+      const daysSince = differenceInDays(new Date(), new Date(data.lastDate));
+      
+      if (widget.color) {
+           const isLight = LIGHT_BG_COLORS.includes(widget.color.toLowerCase());
+           const textColor = isLight ? 'text-slate-900' : 'text-white';
+
+           return (
+            <div className="absolute inset-0 p-4 flex flex-col justify-between" style={{ backgroundColor: widget.color }}>
+                <MinimalHeader icon={<Icons.LastDone />} title={widget.title} color={isLight ? undefined : 'white'} />
+                <div>
+                    <div className={`text-6xl font-black tracking-tighter leading-none mb-1 ${textColor}`}>
+                        {daysSince}
+                    </div>
+                    <div className={`text-xs font-bold ${isLight ? 'text-slate-500' : 'text-white/60'}`}>天前</div>
+                </div>
+            </div>
+           );
+      }
+
+      return (
+        <div className="flex flex-col h-full justify-between p-4">
+          <MinimalHeader icon={<Icons.LastDone />} title={widget.title} />
+          <div className="flex-1 flex items-end justify-end">
+             <div className="text-right">
+                <div className="text-5xl font-black text-emerald-600 tracking-tighter leading-none">
+                    {daysSince}
+                </div>
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">天前</div>
+             </div>
+          </div>
+        </div>
+      );
+    }
+    case WidgetType.PLAN: {
+      const data = widget.data as { questions: PlanQuestion[]; records: PlanRecords };
+      const today = format(new Date(), 'yyyy-MM-dd');
+      const todayRecord = data.records[today] || {};
+      const filledCount = Object.keys(todayRecord).length;
+      const totalCount = data.questions.length;
+      const progress = totalCount === 0 ? 0 : (filledCount / totalCount) * 100;
+
+      return (
+        <div className="flex flex-col h-full justify-between p-4">
+           <MinimalHeader icon={<Icons.Plan />} title={widget.title} />
+           <div className="flex-1 flex flex-col justify-end">
+                <div className="flex justify-between items-end mb-1">
+                    <span className="text-xs font-bold text-slate-400">今日</span>
+                    <span className="text-2xl font-black text-[var(--primary-color)]">{Math.round(progress)}%</span>
+                </div>
+                <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-[var(--primary-color)] transition-all duration-500" style={{ width: `${progress}%` }}></div>
+                </div>
+           </div>
+        </div>
+      );
+    }
+    case WidgetType.DATA: {
+       const data = widget.data as { label: string; unit: string; points: DataPoint[] };
+       const lastVal = data.points.length > 0 ? data.points[data.points.length - 1].value : 0;
+       return (
+         <div className="flex flex-col h-full justify-between p-4 pb-0">
+           <MinimalHeader icon={<Icons.Data />} title={widget.title} />
+           <div>
+               <div className="text-4xl font-black text-purple-600 tracking-tighter leading-none truncate -ml-1">{lastVal}<span className="text-sm ml-1 text-slate-400 font-medium">{data.unit}</span></div>
+           </div>
+            <div className="h-12 w-full -mx-4 -mb-2 opacity-60">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={data.points.slice(-5)}>
+                  <Line type="monotone" dataKey="value" stroke="#9333ea" strokeWidth={3} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+         </div>
+       );
+    }
+    case WidgetType.NOTE: {
+        const data = widget.data as { items: NotebookItem[] };
+        const latestNote = data.items && data.items.length > 0 ? data.items[0] : null;
+        const count = data.items?.length || 0;
+        
+        return (
+            <div className="flex flex-col h-full p-4 bg-yellow-50 justify-between">
+                <MinimalHeader icon={<Icons.NoteWidget />} title={widget.title} />
+                <div className="flex-1 overflow-hidden relative">
+                    {latestNote ? (
+                         <div className="text-xs text-slate-600 font-medium leading-relaxed line-clamp-3 whitespace-pre-wrap" dangerouslySetInnerHTML={{__html: latestNote.content}}></div>
+                    ) : (
+                        <p className="text-xs text-slate-400 italic">空空如也...</p>
+                    )}
+                </div>
+                {count > 0 && (
+                    <div className="text-[10px] text-slate-400 text-right mt-1">{count} 条笔记</div>
+                )}
+            </div>
+        )
+    }
+    default: return null;
+  }
+};
+
+// --- Full Views ---
+
+export const ListFull: React.FC<FullViewProps> = ({ widget, updateWidget, isSelectionMode, setIsSelectionMode }) => {
+    const data = widget.data as { items: PlaylistItem[]; categories: string[] };
+    const [newItemText, setNewItemText] = useState('');
+    const [activeTab, setActiveTab] = useState<string | null>(data.categories[0] || '默认');
+    const [showAddModal, setShowAddModal] = useState(false);
+    const [newItemCategory, setNewItemCategory] = useState(data.categories[0] || '默认');
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [editingItem, setEditingItem] = useState<PlaylistItem | null>(null);
+    const [randomItem, setRandomItem] = useState<PlaylistItem | null>(null);
+
+    useEffect(() => {
+        if(showAddModal) setNewItemCategory(activeTab || '默认');
+    }, [showAddModal, activeTab]);
+
+    useEffect(() => {
+        if(!isSelectionMode) setSelectedIds(new Set());
+    }, [isSelectionMode]);
+
+    const addItem = () => {
+        if (!newItemText.trim()) return;
+        const newItem: PlaylistItem = {
+            id: Date.now().toString(),
+            title: newItemText,
+            completed: false,
+            category: newItemCategory,
+            starred: false
+        };
+        updateWidget({ ...widget, data: { ...data, items: [newItem, ...data.items] } });
+        setNewItemText('');
+        setShowAddModal(false);
+    };
+
+    const toggleItem = (id: string) => {
+        if (isSelectionMode) {
+            const newSet = new Set(selectedIds);
+            if (newSet.has(id)) newSet.delete(id);
+            else newSet.add(id);
+            setSelectedIds(newSet);
+        } else {
+            const newItems = data.items.map(i => i.id === id ? { ...i, completed: !i.completed } : i);
+            updateWidget({ ...widget, data: { ...data, items: newItems } });
+        }
+    };
+
+    const toggleStar = (id: string) => {
+        const newItems = data.items.map(i => i.id === id ? { ...i, starred: !i.starred } : i);
+        updateWidget({ ...widget, data: { ...data, items: newItems } });
+    };
+
+    const deleteItem = (id: string) => {
+        updateWidget({ ...widget, data: { ...data, items: data.items.filter(i => i.id !== id) } });
+    };
+
+    const deleteSelected = () => {
+        if(confirm(`删除选中的 ${selectedIds.size} 项?`)) {
+            updateWidget({ ...widget, data: { ...data, items: data.items.filter(i => !selectedIds.has(i.id)) } });
+            setSelectedIds(new Set());
+            if(setIsSelectionMode) setIsSelectionMode(false);
+        }
+    };
+
+    const moveSelected = () => {
+        const cat = prompt("移动到哪个分类?", data.categories[0]);
+        if(cat && data.categories.includes(cat)) {
+            const newItems = data.items.map(i => selectedIds.has(i.id) ? { ...i, category: cat } : i);
+            updateWidget({ ...widget, data: { ...data, items: newItems } });
+            setSelectedIds(new Set());
+            if(setIsSelectionMode) setIsSelectionMode(false);
+        } else if (cat) alert('分类不存在');
+    };
+
+    const filteredItems = data.items.filter(i => i.category === activeTab);
+    const sortedItems = [...filteredItems].sort((a, b) => {
+        if (a.completed !== b.completed) return a.completed ? 1 : -1;
+        if (a.starred !== b.starred) return a.starred ? -1 : 1;
+        return a.id > b.id ? -1 : 1;
+    });
+
+    const handleRandom = () => {
+        const candidates = filteredItems.filter(i => !i.completed);
+        if (candidates.length === 0) {
+            alert("当前没有未完成的项目！");
+            return;
+        }
+        const randomIndex = Math.floor(Math.random() * candidates.length);
+        setRandomItem(candidates[randomIndex]);
+    };
+
+    const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const handleTouchStart = (item: PlaylistItem) => {
+        if(isSelectionMode) return;
+        longPressTimer.current = setTimeout(() => { setEditingItem(item); }, 600);
+    };
+    const handleTouchEnd = () => { if(longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; } };
+
+    return (
+        <div className="flex flex-col h-full relative pt-4">
+            <CategoryTabStrip 
+                categories={data.categories} activeCategory={activeTab} onSelect={setActiveTab}
+                onAdd={() => { const newCat = prompt("新建分类"); if(newCat && !data.categories.includes(newCat)) { updateWidget({...widget, data: {...data, categories: [...data.categories, newCat]}}); setActiveTab(newCat); } }}
+                onEdit={(o, n) => { const newCats = data.categories.map(c => c === o ? n : c); updateWidget({...widget, data: {...data, categories: newCats}}); if(activeTab === o) setActiveTab(n); }}
+                onDelete={(n) => { const newCats = data.categories.filter(c => c !== n); updateWidget({...widget, data: {...data, categories: newCats}}); setActiveTab(null); }}
+            />
+             
+            <div className="flex justify-end px-1 mb-2">
+                 <button 
+                    onClick={handleRandom}
+                    className="flex items-center gap-1 bg-white border border-slate-200 text-slate-500 hover:text-[var(--primary-color)] hover:border-[var(--primary-color)] px-3 py-1.5 rounded-full text-xs font-bold transition shadow-sm"
+                 >
+                     <Icons.Shuffle size={14} /> 随机选择
+                 </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-2 pb-24">
+                {sortedItems.map(item => (
+                    <div key={item.id} onClick={() => isSelectionMode && toggleItem(item.id)} onMouseDown={() => handleTouchStart(item)} onMouseUp={handleTouchEnd} onMouseLeave={handleTouchEnd} onTouchStart={() => handleTouchStart(item)} onTouchEnd={handleTouchEnd} className={`flex items-center gap-3 p-3 bg-white border rounded-xl shadow-sm transition-all select-none active:scale-[0.99] ${item.starred ? 'border-amber-200 bg-amber-50/30' : 'border-slate-100'} ${isSelectionMode && selectedIds.has(item.id) ? 'ring-2 ring-[var(--primary-color)] bg-indigo-50/50' : ''}`}>
+                        <button onClick={(e) => { e.stopPropagation(); toggleItem(item.id); }} className={`w-5 h-5 rounded border flex items-center justify-center transition-colors shrink-0 ${isSelectionMode ? (selectedIds.has(item.id) ? 'bg-[var(--primary-color)] border-[var(--primary-color)]' : 'border-slate-300 bg-white') : (item.completed ? 'bg-[var(--primary-color)] border-[var(--primary-color)]' : 'border-slate-300 bg-white')}`}>{(isSelectionMode ? selectedIds.has(item.id) : item.completed) && <Icons.Check size={12} className="text-white" />}</button>
+                        <span className={`flex-1 text-sm break-all ${item.completed ? 'text-slate-400 line-through' : 'text-slate-700'}`}>{item.title}</span>
+                        {!isSelectionMode && (<button onClick={(e) => { e.stopPropagation(); toggleStar(item.id); }} className={`${item.starred ? 'text-amber-400' : 'text-slate-300 hover:text-amber-300'} shrink-0`}><Icons.Rating size={18} fill={item.starred ? "currentColor" : "none"} /></button>)}
+                    </div>
+                ))}
+                {filteredItems.length === 0 && <div className="text-center text-slate-300 text-xs py-8">暂无项目</div>}
+            </div>
+            {isSelectionMode && (
+                <div className="absolute bottom-4 left-4 right-4 z-20"><div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-3 flex justify-around items-center"><button onClick={deleteSelected} disabled={selectedIds.size === 0} className="flex flex-col items-center gap-1 text-red-500 disabled:opacity-50 text-[10px] font-bold"><Icons.Delete size={18}/> 删除</button><button onClick={moveSelected} disabled={selectedIds.size === 0} className="flex flex-col items-center gap-1 text-slate-600 disabled:opacity-50 text-[10px] font-bold"><Icons.Dashboard size={18}/> 分类</button></div></div>
+            )}
+            {!isSelectionMode && (<div className="absolute bottom-6 right-6 z-10"><button onClick={() => setShowAddModal(true)} className="w-14 h-14 bg-[var(--primary-color)] text-white rounded-full shadow-lg flex items-center justify-center hover:scale-105 active:scale-95 transition"><Icons.Plus size={28} /></button></div>)}
+            {showAddModal && (<div className="absolute inset-0 z-20 bg-black/50 backdrop-blur-sm flex items-end justify-center sm:items-center p-4 animate-in fade-in"><div className="bg-white w-full rounded-2xl p-5 shadow-2xl animate-in slide-in-from-bottom-10" onClick={e => e.stopPropagation()}><div className="flex justify-between items-center mb-4"><h3 className="font-bold text-slate-800">添加事项</h3><button onClick={() => setShowAddModal(false)} className="p-1 rounded-full bg-slate-100 text-slate-500"><Icons.Close size={20}/></button></div><input autoFocus className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none mb-4" placeholder="输入事项内容..." value={newItemText} onChange={e => setNewItemText(e.target.value)} onKeyDown={e => e.key === 'Enter' && addItem()}/><div className="mb-4"><label className="text-xs font-bold text-slate-400 mb-2 block">分类</label><div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">{data.categories.map(cat => (<button key={cat} onClick={() => setNewItemCategory(cat)} className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap border ${newItemCategory === cat ? 'bg-[var(--primary-color)] text-white border-[var(--primary-color)]' : 'border-slate-200 text-slate-500'}`}>{cat}</button>))}</div></div><button onClick={addItem} className="w-full bg-[var(--primary-color)] text-white py-3 rounded-xl font-bold shadow-md">确认添加</button></div></div>)}
+            {editingItem && (<div className="absolute inset-0 z-30 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in"><div className="bg-white w-full rounded-2xl p-5 shadow-2xl animate-in zoom-in-95" onClick={e => e.stopPropagation()}><h3 className="font-bold text-slate-800 mb-4">编辑事项</h3><input className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none mb-4" value={editingItem.title} onChange={e => setEditingItem({...editingItem, title: e.target.value})}/><div className="flex gap-2"><button onClick={() => { deleteItem(editingItem.id); setEditingItem(null); }} className="flex-1 bg-red-50 text-red-500 py-3 rounded-xl font-bold">删除</button><button onClick={() => { const newItems = data.items.map(i => i.id === editingItem.id ? editingItem : i); updateWidget({...widget, data: {...data, items: newItems}}); setEditingItem(null); }} className="flex-1 bg-[var(--primary-color)] text-white py-3 rounded-xl font-bold">保存</button></div></div></div>)}
+            
+            {/* Random Result Modal */}
+            {randomItem && (
+                 <div className="absolute inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in" onClick={() => setRandomItem(null)}>
+                     <div className="bg-white w-full rounded-2xl p-6 shadow-2xl animate-in zoom-in-95 text-center" onClick={e => e.stopPropagation()}>
+                         <div className="w-16 h-16 bg-[var(--primary-color)] rounded-full flex items-center justify-center mx-auto mb-4 text-white shadow-lg animate-bounce">
+                             <Icons.Shuffle size={32} />
+                         </div>
+                         <h3 className="text-xl font-black text-slate-800 mb-2">命运的选择</h3>
+                         <div className="text-lg text-slate-600 font-medium py-4 border-t border-b border-slate-100 my-4">
+                             {randomItem.title}
+                         </div>
+                         <button onClick={() => setRandomItem(null)} className="w-full py-3 bg-slate-900 text-white rounded-xl font-bold">
+                             太好了!
+                         </button>
+                     </div>
+                 </div>
+            )}
+        </div>
+    );
+};
+
+export const RatingFull: React.FC<FullViewProps> = ({ widget, updateWidget, isSelectionMode, setIsSelectionMode }) => {
+    const data = widget.data as { items: RatingItem[]; categories: string[] };
+    const [activeCategory, setActiveCategory] = useState<string | null>(null);
+    const [showAddModal, setShowAddModal] = useState(false);
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [viewingItem, setViewingItem] = useState<RatingItem | null>(null);
+    const [editingItem, setEditingItem] = useState<RatingItem | null>(null);
+    const [title, setTitle] = useState('');
+    const [rating, setRating] = useState(0);
+    const [category, setCategory] = useState(data.categories[0] || 'Movie');
+    const [cover, setCover] = useState<string>('');
+    const [review, setReview] = useState('');
+    const [randomItem, setRandomItem] = useState<RatingItem | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => { if (!isSelectionMode) setSelectedIds(new Set()); }, [isSelectionMode]);
+    useEffect(() => { if (editingItem) { setTitle(editingItem.title); setRating(editingItem.rating); setCategory(editingItem.category); setCover(editingItem.cover || ''); setReview(editingItem.review || ''); setShowAddModal(true); } }, [editingItem]);
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (file) { const reader = new FileReader(); reader.onload = (event) => { if (typeof event.target?.result === 'string') setCover(event.target.result); }; reader.readAsDataURL(file); } };
+    const handleSave = () => { if (!title.trim()) return; if (editingItem) { const newItems = data.items.map(i => i.id === editingItem.id ? { ...i, title, rating, category, cover: cover || undefined, review: review || undefined } : i); updateWidget({ ...widget, data: { ...data, items: newItems } }); setEditingItem(null); } else { const newItem: RatingItem = { id: Date.now().toString(), title, rating, category, cover: cover || undefined, review: review || undefined }; updateWidget({ ...widget, data: { ...data, items: [newItem, ...data.items] } }); } setTitle(''); setRating(0); setCover(''); setReview(''); setShowAddModal(false); };
+    const toggleSelection = (id: string) => { const newSet = new Set(selectedIds); if (newSet.has(id)) newSet.delete(id); else newSet.add(id); setSelectedIds(newSet); };
+    const deleteSelected = () => { if(confirm(`删除选中的 ${selectedIds.size} 项?`)) { updateWidget({ ...widget, data: { ...data, items: data.items.filter(i => !selectedIds.has(i.id)) } }); setSelectedIds(new Set()); if(setIsSelectionMode) setIsSelectionMode(false); } };
+    const moveSelected = () => { const cat = prompt("移动到哪个分类?", data.categories[0]); if(cat && data.categories.includes(cat)) { const newItems = data.items.map(i => selectedIds.has(i.id) ? { ...i, category: cat } : i); updateWidget({ ...widget, data: { ...data, items: newItems } }); setSelectedIds(new Set()); if(setIsSelectionMode) setIsSelectionMode(false); } else if (cat) alert('分类不存在'); };
+    const deleteItem = (id: string) => { updateWidget({ ...widget, data: { ...data, items: data.items.filter(i => i.id !== id) } }); };
+    const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const handleTouchStart = (item: RatingItem) => { if(isSelectionMode) return; longPressTimer.current = setTimeout(() => { setEditingItem(item); }, 600); };
+    const handleTouchEnd = () => { if(longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; } };
+    const filteredItems = activeCategory ? data.items.filter(i => i.category === activeCategory) : data.items;
+
+    const handleRandom = () => {
+        if (filteredItems.length === 0) {
+            alert("当前列表为空！");
+            return;
+        }
+        const randomIndex = Math.floor(Math.random() * filteredItems.length);
+        setRandomItem(filteredItems[randomIndex]);
+    };
+
+    return (
+        <div className="flex flex-col h-full relative pt-4">
+            <CategoryTabStrip categories={data.categories} activeCategory={activeCategory} onSelect={setActiveCategory} onAdd={() => { const newCat = prompt("新建分类"); if(newCat && !data.categories.includes(newCat)) { updateWidget({...widget, data: {...data, categories: [...data.categories, newCat]}}); setActiveCategory(newCat); } }} onEdit={(o, n) => { const newCats = data.categories.map(c => c === o ? n : c); updateWidget({...widget, data: {...data, categories: newCats}}); if(activeCategory === o) setActiveCategory(n); }} onDelete={(n) => { const newCats = data.categories.filter(c => c !== n); updateWidget({...widget, data: {...data, categories: newCats}}); setActiveCategory(null); }} />
+            
+             <div className="flex justify-end px-1 mb-2">
+                 <button 
+                    onClick={handleRandom}
+                    className="flex items-center gap-1 bg-white border border-slate-200 text-slate-500 hover:text-[var(--primary-color)] hover:border-[var(--primary-color)] px-3 py-1.5 rounded-full text-xs font-bold transition shadow-sm"
+                 >
+                     <Icons.Shuffle size={14} /> 随机回顾
+                 </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-3 pb-24">
+                {filteredItems.map(item => (
+                    <div key={item.id} onClick={() => { if (isSelectionMode) toggleSelection(item.id); else setViewingItem(item); }} onMouseDown={() => handleTouchStart(item)} onMouseUp={handleTouchEnd} onMouseLeave={handleTouchEnd} onTouchStart={() => handleTouchStart(item)} onTouchEnd={handleTouchEnd} className={`flex gap-3 p-3 bg-white rounded-xl border shadow-sm relative overflow-hidden active:scale-[0.99] transition-all ${isSelectionMode && selectedIds.has(item.id) ? 'ring-2 ring-[var(--primary-color)] bg-indigo-50/30 border-[var(--primary-color)]' : 'border-slate-100'}`}>
+                        {isSelectionMode && (<div className={`absolute top-2 right-2 w-5 h-5 rounded-full border-2 flex items-center justify-center transition z-10 ${selectedIds.has(item.id) ? 'bg-[var(--primary-color)] border-[var(--primary-color)]' : 'border-slate-200 bg-white'}`}>{selectedIds.has(item.id) && <Icons.Check size={12} className="text-white" strokeWidth={4} />}</div>)}
+                        {item.cover && (<div className="w-16 h-20 shrink-0 rounded-lg overflow-hidden bg-slate-100"><img src={item.cover} className="w-full h-full object-cover" alt={item.title} /></div>)}
+                        <div className="flex-1 min-w-0 flex flex-col"><div className="flex justify-between items-start"><div className="font-bold text-slate-800 truncate pr-2">{item.title}</div><div className="flex items-center gap-1 text-amber-400 shrink-0"><span className="font-bold text-sm">{item.rating}</span><Icons.Rating size={12} fill="currentColor" /></div></div><div className="text-xs text-slate-400 mt-0.5 mb-1">{item.category}</div>{item.review && (<div className="text-xs text-slate-600 line-clamp-2 mt-auto bg-slate-50 p-1.5 rounded">{item.review}</div>)}{!isSelectionMode && (<div className="flex justify-end mt-1"><button onClick={(e) => { e.stopPropagation(); deleteItem(item.id); }} className="text-slate-300 hover:text-red-400 opacity-0"><Icons.Delete size={14} /></button></div>)}</div>
+                    </div>
+                ))}
+            </div>
+            {isSelectionMode && (<div className="absolute bottom-4 left-4 right-4 z-20"><div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-3 flex justify-around items-center"><button onClick={deleteSelected} disabled={selectedIds.size === 0} className="flex flex-col items-center gap-1 text-red-500 disabled:opacity-50 text-[10px] font-bold"><Icons.Delete size={18}/> 删除</button><button onClick={moveSelected} disabled={selectedIds.size === 0} className="flex flex-col items-center gap-1 text-slate-600 disabled:opacity-50 text-[10px] font-bold"><Icons.Dashboard size={18}/> 分类</button></div></div>)}
+            {!isSelectionMode && (<div className="absolute bottom-6 right-6 z-10"><button onClick={() => { setEditingItem(null); setTitle(''); setRating(0); setCover(''); setReview(''); setShowAddModal(true); }} className="w-14 h-14 bg-[var(--primary-color)] text-white rounded-full shadow-lg flex items-center justify-center hover:scale-105 active:scale-95 transition"><Icons.Plus size={28} /></button></div>)}
+            {viewingItem && (<div className="absolute inset-0 z-30 bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in" onClick={() => setViewingItem(null)}><div className="bg-white w-full rounded-2xl overflow-hidden shadow-2xl animate-in zoom-in-95 max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>{viewingItem.cover ? (<div className="w-full aspect-[3/4] max-h-[50vh] bg-slate-100 relative"><img src={viewingItem.cover} className="w-full h-full object-cover" /><div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex flex-col justify-end p-4 text-white"><h3 className="text-xl font-bold leading-tight">{viewingItem.title}</h3><div className="flex items-center gap-1 text-amber-400 mt-1"><span className="font-bold">{viewingItem.rating}</span><Icons.Rating size={16} fill="currentColor" /><span className="text-xs text-white/70 ml-2 px-2 py-0.5 bg-white/20 rounded-full backdrop-blur-md">{viewingItem.category}</span></div></div></div>) : (<div className="p-6 pb-2"><h3 className="text-xl font-bold text-slate-800 leading-tight">{viewingItem.title}</h3><div className="flex items-center gap-1 text-amber-400 mt-1"><span className="font-bold">{viewingItem.rating}</span><Icons.Rating size={16} fill="currentColor" /><span className="text-xs text-slate-400 ml-2 px-2 py-0.5 bg-slate-100 rounded-full">{viewingItem.category}</span></div></div>)}<div className="p-6 overflow-y-auto flex-1 text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">{viewingItem.review || <span className="italic text-slate-300">暂无评价...</span>}</div></div></div>)}
+            {showAddModal && (<div className="absolute inset-0 z-20 bg-black/50 backdrop-blur-sm flex items-end justify-center sm:items-center p-4 animate-in fade-in"><div className="bg-white w-full rounded-2xl p-5 shadow-2xl animate-in slide-in-from-bottom-10 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}><div className="flex justify-between items-center mb-4"><h3 className="font-bold text-slate-800">{editingItem ? '编辑记录' : '记录书影音'}</h3><button onClick={() => setShowAddModal(false)} className="p-1 rounded-full bg-slate-100 text-slate-500"><Icons.Close size={20}/></button></div><div className="flex gap-4 mb-4"><div onClick={() => fileInputRef.current?.click()} className="w-24 h-32 bg-slate-100 rounded-lg flex flex-col items-center justify-center text-slate-400 cursor-pointer hover:bg-slate-200 transition shrink-0 overflow-hidden relative">{cover ? (<img src={cover} className="w-full h-full object-cover" alt="cover" />) : (<><Icons.Image size={24} /><span className="text-[10px] mt-1">封面</span></>)}<input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} /></div><div className="flex-1 space-y-3"><input className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none font-bold" placeholder="名称..." value={title} onChange={e => setTitle(e.target.value)} /><div><label className="text-[10px] font-bold text-slate-400 mb-1 block">分类</label><select value={category} onChange={e => setCategory(e.target.value)} className="w-full bg-slate-50 border border-slate-200 text-xs rounded-lg px-2 py-2 outline-none">{data.categories.map(c => <option key={c} value={c}>{c}</option>)}</select></div><div><label className="text-[10px] font-bold text-slate-400 mb-1 block">评分</label><div className="flex gap-1">{[1, 2, 3, 4, 5].map(v => (<button key={v} onClick={() => setRating(v)} className={`${rating >= v ? 'text-amber-400' : 'text-slate-200'}`}><Icons.Rating size={20} fill="currentColor" /></button>))}</div></div></div></div><textarea className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none mb-4 min-h-[80px]" placeholder="写点评价..." value={review} onChange={e => setReview(e.target.value)} /><button onClick={handleSave} className="w-full bg-[var(--primary-color)] text-white py-3 rounded-xl font-bold shadow-md">{editingItem ? '保存修改' : '保存记录'}</button></div></div>)}
+            
+            {/* Random Result Modal */}
+            {randomItem && (
+                 <div className="absolute inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in" onClick={() => setRandomItem(null)}>
+                     <div className="bg-white w-full rounded-2xl p-6 shadow-2xl animate-in zoom-in-95 text-center flex flex-col items-center" onClick={e => e.stopPropagation()}>
+                         <div className="w-16 h-16 bg-[var(--primary-color)] rounded-full flex items-center justify-center mb-4 text-white shadow-lg animate-bounce">
+                             <Icons.Shuffle size={32} />
+                         </div>
+                         <h3 className="text-xl font-black text-slate-800 mb-2">随机回顾</h3>
+                         
+                         {randomItem.cover && (
+                             <div className="w-24 h-32 rounded-lg overflow-hidden shadow-md my-4">
+                                 <img src={randomItem.cover} className="w-full h-full object-cover" />
+                             </div>
+                         )}
+
+                         <div className="text-lg text-slate-800 font-bold py-2">
+                             {randomItem.title}
+                         </div>
+                         
+                         <div className="flex items-center gap-1 text-amber-500 mb-6 justify-center">
+                            <span className="font-bold">{randomItem.rating}</span>
+                            <Icons.Rating size={16} fill="currentColor" />
+                         </div>
+
+                         <button onClick={() => setRandomItem(null)} className="w-full py-3 bg-slate-900 text-white rounded-xl font-bold">
+                             就它了!
+                         </button>
+                     </div>
+                 </div>
+            )}
+        </div>
+    );
+};
+
+export const CountdownFull: React.FC<FullViewProps> = ({ widget, updateWidget }) => {
+    const data = widget.data as { targetDate: string; eventName: string };
+    
+    return (
+        <div className="space-y-6 pt-4">
+            <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">事件名称</label>
+                <input 
+                    value={data.eventName} 
+                    onChange={(e) => updateWidget({ ...widget, data: { ...data, eventName: e.target.value } })}
+                    className="w-full text-2xl font-bold border-b border-slate-200 py-2 focus:outline-none focus:border-[var(--primary-color)] bg-transparent text-slate-800" 
+                />
+            </div>
+            
+            <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">目标日期</label>
+                <input 
+                    type="date"
+                    value={data.targetDate} 
+                    onChange={(e) => updateWidget({ ...widget, data: { ...data, targetDate: e.target.value } })}
+                    className="w-full text-xl font-medium border-b border-slate-200 py-2 focus:outline-none focus:border-[var(--primary-color)] bg-transparent text-slate-800" 
+                />
+            </div>
+
+            <div className="space-y-3 pt-4">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">卡片颜色</label>
+                <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
+                    {COLORS.map(c => (
+                        <button 
+                            key={c} 
+                            onClick={() => updateWidget({ ...widget, color: c })}
+                            className={`w-12 h-12 rounded-full shadow-sm shrink-0 transition-transform ${widget.color === c ? 'scale-110 ring-2 ring-slate-400 ring-offset-2' : ''}`}
+                            style={{ backgroundColor: c }}
+                        />
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export const LastDoneFull: React.FC<FullViewProps> = ({ widget, updateWidget }) => {
+    const data = widget.data as { lastDate: number; frequencyDays: number; history?: number[] };
+    const history = data.history || [data.lastDate];
+
+    const handleCheckIn = () => {
+        const now = Date.now();
+        updateWidget({ 
+            ...widget, 
+            data: { 
+                ...data, 
+                lastDate: now,
+                history: [now, ...history]
+            } 
+        });
+    };
+
+    return (
+        <div className="flex flex-col h-full pt-4">
+             <div className="flex items-center justify-between mb-8">
+                <div>
+                     <div className="text-6xl font-black text-slate-800 tracking-tighter">
+                         {differenceInDays(new Date(), new Date(data.lastDate))}
+                     </div>
+                     <div className="text-sm font-bold text-slate-400">天前</div>
+                </div>
+                <button 
+                    onClick={handleCheckIn}
+                    className="w-20 h-20 rounded-full bg-[var(--primary-color)] text-white shadow-xl flex items-center justify-center hover:scale-105 active:scale-95 transition"
+                >
+                    <Icons.Check size={40} strokeWidth={3} />
+                </button>
+             </div>
+
+             <div className="flex-1">
+                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">历史记录</h4>
+                 <div className="space-y-2">
+                     {history.slice(0, 10).map((ts, idx) => (
+                         <div key={idx} className="flex justify-between items-center py-3 border-b border-slate-100">
+                             <span className="font-medium text-slate-700">{format(ts, 'yyyy年MM月dd日 HH:mm', { locale: zhCN })}</span>
+                             <span className="text-xs text-slate-400">{idx === 0 ? '最新' : ''}</span>
+                         </div>
+                     ))}
+                 </div>
+             </div>
+
+             <div className="mt-8 pt-4 border-t border-slate-100">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-3">卡片颜色</label>
+                <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
+                    {COLORS.map(c => (
+                        <button 
+                            key={c} 
+                            onClick={() => updateWidget({ ...widget, color: c })}
+                            className={`w-8 h-8 rounded-full shadow-sm shrink-0 transition-transform ${widget.color === c ? 'scale-110 ring-2 ring-slate-400 ring-offset-2' : ''}`}
+                            style={{ backgroundColor: c }}
+                        />
+                    ))}
+                </div>
+             </div>
+        </div>
+    );
+};
+
+export const PlanFull: React.FC<FullViewProps> = ({ widget, updateWidget }) => {
+    const data = widget.data as { questions: PlanQuestion[]; records: PlanRecords };
+    const [date, setDate] = useState(new Date());
+    const dateStr = format(date, 'yyyy-MM-dd');
+    const [editMode, setEditMode] = useState(false);
+    const [newQuestionText, setNewQuestionText] = useState('');
+
+    const recordsForDate = data.records[dateStr] || {};
+
+    const handleAnswer = (qId: string, val: string) => {
+        const newRecords = { 
+            ...data.records,
+            [dateStr]: { ...recordsForDate, [qId]: val }
+        };
+        updateWidget({ ...widget, data: { ...data, records: newRecords } });
+    };
+
+    const addQuestion = () => {
+        if (!newQuestionText.trim()) return;
+        const newQ = { id: Date.now().toString(), text: newQuestionText };
+        updateWidget({ ...widget, data: { ...data, questions: [...data.questions, newQ] } });
+        setNewQuestionText('');
+    };
+
+    const deleteQuestion = (id: string) => {
+        updateWidget({ ...widget, data: { ...data, questions: data.questions.filter(q => q.id !== id) } });
+    };
+
+    return (
+        <div className="flex flex-col h-full pt-2">
+            <div className="flex items-center justify-between mb-6 bg-slate-50 p-2 rounded-xl">
+                <button onClick={() => setDate(subDays(date, 1))} className="p-2 hover:bg-white rounded-lg transition text-slate-500"><Icons.ChevronLeft size={20}/></button>
+                <div className="text-base font-bold text-slate-700">{format(date, 'MM月dd日 EEEE', { locale: zhCN })}</div>
+                <button onClick={() => setDate(addDays(date, 1))} className={`p-2 hover:bg-white rounded-lg transition text-slate-500 ${isToday(date) ? 'opacity-30 cursor-default' : ''}`} disabled={isToday(date)}><Icons.ArrowRight size={20}/></button>
+            </div>
+
+            {editMode ? (
+                 <div className="flex-1 overflow-y-auto">
+                     <div className="mb-4 flex justify-between items-center">
+                         <h4 className="font-bold text-slate-800">管理问题</h4>
+                         <button onClick={() => setEditMode(false)} className="text-xs text-[var(--primary-color)] font-bold">完成</button>
+                     </div>
+                     <div className="space-y-2 mb-4">
+                         {data.questions.map(q => (
+                             <div key={q.id} className="flex gap-2 items-center">
+                                 <input className="flex-1 bg-white border border-slate-200 p-2 rounded-lg text-sm" value={q.text} onChange={(e) => {
+                                     const newQs = data.questions.map(item => item.id === q.id ? { ...item, text: e.target.value } : item);
+                                     updateWidget({ ...widget, data: { ...data, questions: newQs } });
+                                 }} />
+                                 <button onClick={() => deleteQuestion(q.id)} className="text-red-400 p-2"><Icons.Delete size={18}/></button>
+                             </div>
+                         ))}
+                     </div>
+                     <div className="flex gap-2">
+                         <input 
+                            placeholder="新问题..." 
+                            className="flex-1 bg-slate-50 border border-slate-200 p-2 rounded-lg text-sm"
+                            value={newQuestionText}
+                            onChange={e => setNewQuestionText(e.target.value)}
+                         />
+                         <button onClick={addQuestion} className="bg-[var(--primary-color)] text-white px-4 rounded-lg font-bold text-sm">添加</button>
+                     </div>
+                 </div>
+            ) : (
+                <div className="flex-1 overflow-y-auto space-y-6 pb-20">
+                    {data.questions.map(q => (
+                        <div key={q.id}>
+                            <div className="text-sm font-bold text-slate-800 mb-2">{q.text}</div>
+                            <textarea 
+                                className="w-full bg-yellow-50/50 border border-yellow-100 rounded-xl p-3 text-sm min-h-[80px] focus:outline-none focus:border-yellow-300 focus:bg-yellow-50 transition"
+                                placeholder="写下你的想法..."
+                                value={recordsForDate[q.id] || ''}
+                                onChange={(e) => handleAnswer(q.id, e.target.value)}
+                            />
+                        </div>
+                    ))}
+                    {data.questions.length === 0 && <div className="text-center text-slate-400 text-sm py-10">还没有设置问题</div>}
+                    
+                    <button onClick={() => setEditMode(true)} className="w-full py-3 text-slate-400 text-xs font-bold border border-dashed border-slate-200 rounded-xl hover:border-slate-300 hover:text-slate-600 transition">
+                        编辑问题模版
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+};
+
+export const DataFull: React.FC<FullViewProps> = ({ widget, updateWidget }) => {
+    const data = widget.data as { label: string; unit: string; points: DataPoint[] };
+    const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+    const [value, setValue] = useState('');
+    const [loading, setLoading] = useState(false);
+
+    const handleAdd = () => {
+        if (!date || !value) return;
+        const newPoint = { date, value: parseFloat(value) };
+        const newPoints = [...data.points, newPoint].sort((a, b) => a.date.localeCompare(b.date));
+        updateWidget({ ...widget, data: { ...data, points: newPoints } });
+        setValue('');
+    };
+
+    const handleDelete = (idx: number) => {
+        const newPoints = [...data.points];
+        newPoints.splice(idx, 1);
+        updateWidget({ ...widget, data: { ...data, points: newPoints } });
+    };
+
+    const handleAnalyze = async () => {
+        if (data.points.length < 2) return;
+        setLoading(true);
+        const result = await analyzeDataTrend(data.label, data.points);
+        alert(result);
+        setLoading(false);
+    }
+
+    return (
+        <div className="flex flex-col h-full pt-2">
+            <div className="h-48 w-full mb-6">
+                <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={data.points}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                        <XAxis dataKey="date" hide />
+                        <YAxis hide domain={['auto', 'auto']} />
+                        <Tooltip 
+                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                            labelStyle={{ color: '#94a3b8', fontSize: '10px' }}
+                        />
+                        <Line type="monotone" dataKey="value" stroke="#9333ea" strokeWidth={3} dot={{ r: 3, fill: '#9333ea' }} activeDot={{ r: 6 }} />
+                    </LineChart>
+                </ResponsiveContainer>
+            </div>
+
+            <div className="flex gap-2 mb-6">
+                <input type="date" className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-2 text-xs" value={date} onChange={e => setDate(e.target.value)} />
+                <input type="number" className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="数值" value={value} onChange={e => setValue(e.target.value)} />
+                <button onClick={handleAdd} className="bg-[var(--primary-color)] text-white px-4 rounded-lg font-bold text-xs">记录</button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto border-t border-slate-100">
+                {data.points.slice().reverse().map((p, idx) => {
+                    const realIdx = data.points.length - 1 - idx;
+                    return (
+                        <div key={idx} className="flex justify-between items-center py-3 border-b border-slate-50">
+                            <span className="text-xs text-slate-500 font-medium">{p.date}</span>
+                            <div className="flex items-center gap-4">
+                                <span className="font-bold text-slate-800">{p.value} <span className="text-[10px] text-slate-400 font-normal">{data.unit}</span></span>
+                                <button onClick={() => handleDelete(realIdx)} className="text-slate-300 hover:text-red-400"><Icons.Delete size={14} /></button>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+            
+            <button 
+                onClick={handleAnalyze} 
+                disabled={loading || data.points.length < 2}
+                className="mt-4 flex items-center justify-center gap-2 w-full py-3 bg-indigo-50 text-indigo-600 rounded-xl font-bold text-xs disabled:opacity-50"
+            >
+                <Icons.AI size={16} />
+                {loading ? '分析中...' : 'AI 趋势分析'}
+            </button>
+        </div>
+    );
+};
+
+export const NoteFull: React.FC<FullViewProps> = ({ widget, updateWidget, isSelectionMode, setIsSelectionMode }) => {
+    const data = widget.data as { items: NotebookItem[] };
+    const items = data.items || [];
+    const [editingItem, setEditingItem] = useState<NotebookItem | null>(null);
+    const [filterTag, setFilterTag] = useState<string | null>(null);
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const editorRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => { if(!isSelectionMode) setSelectedIds(new Set()); }, [isSelectionMode]);
+
+    const allTags = Array.from(new Set(items.flatMap(i => i.tags)));
+    const filteredItems = filterTag ? items.filter(i => i.tags.includes(filterTag)) : items;
+
+    const handleSave = () => {
+        if (!editorRef.current) return;
+        const content = editorRef.current.innerHTML;
+        if (!content.trim() && !content.includes('<img')) return;
+
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = content;
+        const textContent = tempDiv.textContent || '';
+        const regex = /#[\w\u4e00-\u9fa5]+/g;
+        const tags = textContent.match(regex)?.map(t => t.substring(1)) || [];
+
+        if (editingItem && editingItem.id !== 'new') {
+             const newItems = items.map(i => i.id === editingItem.id ? { ...i, content, tags } : i);
+             updateWidget({ ...widget, data: { ...data, items: newItems } });
+        } else {
+             const newItem: NotebookItem = {
+                 id: Date.now().toString(),
+                 content,
+                 tags,
+                 createdAt: Date.now()
+             };
+             updateWidget({ ...widget, data: { ...data, items: [newItem, ...items] } });
+        }
+        setEditingItem(null);
+    };
+
+    const deleteSelected = () => {
+        if(confirm(`删除选中的 ${selectedIds.size} 条笔记?`)) {
+            updateWidget({ ...widget, data: { ...data, items: items.filter(i => !selectedIds.has(i.id)) } });
+            setSelectedIds(new Set());
+            if(setIsSelectionMode) setIsSelectionMode(false);
+        }
+    };
+
+    const toggleSelection = (id: string) => {
+        const newSet = new Set(selectedIds);
+        if (newSet.has(id)) newSet.delete(id);
+        else newSet.add(id);
+        setSelectedIds(newSet);
+    };
+
+    if (editingItem) {
+        return (
+            <div className="flex flex-col h-full pt-2">
+                <div className="flex justify-between items-center mb-4">
+                     <button onClick={() => setEditingItem(null)} className="text-slate-400 hover:text-slate-600 text-xs font-bold px-2 py-1">取消</button>
+                     <button onClick={handleSave} className="bg-[var(--primary-color)] text-white px-5 py-2 rounded-full text-xs font-bold shadow-md">保存</button>
+                </div>
+                <div 
+                    ref={editorRef}
+                    contentEditable
+                    className="flex-1 w-full text-slate-800 placeholder-slate-400 outline-none bg-transparent text-sm leading-relaxed empty:before:content-['写点什么...'] empty:before:text-slate-300 [&>ul]:list-disc [&>ul]:pl-5"
+                    dangerouslySetInnerHTML={{ __html: editingItem.id === 'new' ? '' : editingItem.content }}
+                />
+            </div>
+        );
+    }
+
+    return (
+        <div className="flex flex-col h-full pt-4 relative">
+             <ExpandableTagStrip tags={allTags} selectedTag={filterTag} onSelect={setFilterTag} />
+             
+             <div className="flex-1 overflow-y-auto space-y-3 pb-24 px-1">
+                 {filteredItems.map(item => (
+                     <div 
+                        key={item.id} 
+                        onClick={() => { if(isSelectionMode) toggleSelection(item.id); else setEditingItem(item); }}
+                        className={`bg-white p-4 rounded-xl border shadow-sm relative overflow-hidden active:scale-[0.99] transition-all ${isSelectionMode && selectedIds.has(item.id) ? 'ring-2 ring-[var(--primary-color)] bg-indigo-50/20 border-transparent' : 'border-slate-100'}`}
+                     >
+                        {isSelectionMode && (
+                            <div className={`absolute top-3 right-3 w-5 h-5 rounded-full border-2 flex items-center justify-center ${selectedIds.has(item.id) ? 'bg-[var(--primary-color)] border-[var(--primary-color)]' : 'border-slate-200 bg-white'}`}>
+                                {selectedIds.has(item.id) && <Icons.Check size={12} className="text-white" strokeWidth={3} />}
+                            </div>
+                        )}
+                        <div className="text-sm text-slate-700 leading-relaxed line-clamp-4 whitespace-pre-wrap" dangerouslySetInnerHTML={{__html: item.content}} />
+                        <div className="mt-2 flex gap-1.5 flex-wrap">
+                             {item.tags.map(t => <span key={t} className="text-[10px] bg-slate-50 text-slate-400 px-2 py-0.5 rounded-md font-medium">#{t}</span>)}
+                        </div>
+                     </div>
+                 ))}
+                 {items.length === 0 && <div className="text-center text-slate-300 text-xs py-8">暂无笔记</div>}
+             </div>
+
+             {isSelectionMode ? (
+                <div className="absolute bottom-4 left-4 right-4 z-20">
+                    <button onClick={deleteSelected} disabled={selectedIds.size === 0} className="w-full bg-white rounded-2xl shadow-xl border border-slate-200 p-3 flex justify-center items-center gap-2 text-red-500 font-bold text-xs disabled:opacity-50">
+                        <Icons.Delete size={16}/> 删除选中 ({selectedIds.size})
+                    </button>
+                </div>
+             ) : (
+                <div className="absolute bottom-6 right-6 z-10">
+                    <button onClick={() => setEditingItem({ id: 'new', content: '', tags: [], createdAt: Date.now() })} className="w-14 h-14 bg-[var(--primary-color)] text-white rounded-full shadow-lg flex items-center justify-center hover:scale-105 active:scale-95 transition">
+                        <Icons.Plus size={28} />
+                    </button>
+                </div>
+             )}
+        </div>
+    );
+};
