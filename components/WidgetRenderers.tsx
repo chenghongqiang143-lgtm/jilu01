@@ -4,7 +4,6 @@ import { Icons } from './Icons';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { format, differenceInDays, addDays, subDays, startOfWeek, isSameDay, isToday, eachDayOfInterval, addWeeks, subWeeks, endOfWeek, parseISO } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
-import { analyzeDataTrend } from '../services/geminiService';
 
 // --- Types ---
 
@@ -15,6 +14,7 @@ export interface FullViewProps {
     setIsSelectionMode?: (b: boolean) => void;
     allWidgets?: Widget[];
     onImageClick?: (src: string) => void;
+    searchQuery?: string;
 }
 
 // --- Shared Constants ---
@@ -179,7 +179,12 @@ export const WidgetPreview: React.FC<{ widget: Widget }> = ({ widget }) => {
 
       return (
         <div className="flex flex-col h-full justify-between p-3">
-          <MinimalHeader icon={<Icons.List />} title={widget.title} />
+          <div className="flex flex-col items-start gap-1">
+             <div className="text-slate-900">
+                <Icons.List size={18} strokeWidth={2.5} />
+             </div>
+             <div className="font-bold text-sm leading-tight truncate text-slate-900">{widget.title}</div>
+          </div>
           <div className="flex-1 flex flex-col justify-end space-y-1.5">
              {topItems.length > 0 ? topItems.map(item => (
                  <div key={item.id} className="flex items-center gap-1.5 text-slate-600">
@@ -259,7 +264,12 @@ export const WidgetPreview: React.FC<{ widget: Widget }> = ({ widget }) => {
       
       return (
         <div className="absolute inset-0 p-3 flex flex-col justify-between" style={{ backgroundColor: bgColor }}>
-          <MinimalHeader icon={<Icons.Calendar />} title={data.eventName} color={isLight ? undefined : 'white'} />
+          <div className="flex flex-col items-start gap-1">
+             <div className={`${isLight ? 'text-slate-900' : 'text-white'}`}>
+                <Icons.Calendar size={18} strokeWidth={2.5} />
+             </div>
+             <div className={`font-bold text-sm leading-tight truncate ${isLight ? 'text-slate-900' : 'text-white'}`}>{data.eventName}</div>
+          </div>
           <div>
             <div className={`text-4xl font-black tracking-tighter leading-none mb-0.5 ${textColor}`}>
               {Math.abs(daysLeft)}
@@ -281,7 +291,12 @@ export const WidgetPreview: React.FC<{ widget: Widget }> = ({ widget }) => {
 
            return (
             <div className="absolute inset-0 p-3 flex flex-col justify-between" style={{ backgroundColor: widget.color }}>
-                <MinimalHeader icon={<Icons.LastDone />} title={widget.title} color={isLight ? undefined : 'white'} />
+                <div className="flex flex-col items-start gap-1">
+                    <div className={`${isLight ? 'text-slate-900' : 'text-white'}`}>
+                        <Icons.LastDone size={18} strokeWidth={2.5} />
+                    </div>
+                    <div className={`font-bold text-sm leading-tight truncate ${isLight ? 'text-slate-900' : 'text-white'}`}>{widget.title}</div>
+                </div>
                 <div>
                     <div className={`text-4xl font-black tracking-tighter leading-none mb-0.5 ${textColor}`}>
                         {daysSince}
@@ -294,7 +309,12 @@ export const WidgetPreview: React.FC<{ widget: Widget }> = ({ widget }) => {
 
       return (
         <div className="flex flex-col h-full justify-between p-3">
-          <MinimalHeader icon={<Icons.LastDone />} title={widget.title} />
+          <div className="flex flex-col items-start gap-1">
+             <div className="text-slate-900">
+                <Icons.LastDone size={18} strokeWidth={2.5} />
+             </div>
+             <div className="font-bold text-sm leading-tight truncate text-slate-900">{widget.title}</div>
+          </div>
           <div className="flex-1 flex items-end justify-end">
              <div className="text-right">
                 <div className="text-4xl font-black text-emerald-600 tracking-tighter leading-none">
@@ -316,7 +336,12 @@ export const WidgetPreview: React.FC<{ widget: Widget }> = ({ widget }) => {
 
       return (
         <div className="flex flex-col h-full justify-between p-3">
-           <MinimalHeader icon={<Icons.Plan />} title={widget.title} />
+           <div className="flex flex-col items-start gap-1">
+             <div className="text-slate-900">
+                <Icons.Plan size={18} strokeWidth={2.5} />
+             </div>
+             <div className="font-bold text-sm leading-tight truncate text-slate-900">{widget.title}</div>
+          </div>
            <div className="flex-1 flex flex-col justify-end">
                 <div className="flex justify-between items-end mb-1">
                     <span className="text-[10px] font-bold text-slate-400">今日</span>
@@ -334,7 +359,12 @@ export const WidgetPreview: React.FC<{ widget: Widget }> = ({ widget }) => {
        const lastVal = data.points.length > 0 ? data.points[data.points.length - 1].value : 0;
        return (
          <div className="flex flex-col h-full justify-between p-3 pb-0">
-           <MinimalHeader icon={<Icons.Data />} title={widget.title} />
+           <div className="flex flex-col items-start gap-1">
+             <div className="text-slate-900">
+                <Icons.Data size={18} strokeWidth={2.5} />
+             </div>
+             <div className="font-bold text-sm leading-tight truncate text-slate-900">{widget.title}</div>
+          </div>
            <div>
                <div className="text-3xl font-black text-purple-600 tracking-tighter leading-none truncate -ml-0.5">{lastVal}<span className="text-[10px] ml-0.5 text-slate-400 font-medium">{data.unit}</span></div>
            </div>
@@ -355,7 +385,12 @@ export const WidgetPreview: React.FC<{ widget: Widget }> = ({ widget }) => {
         
         return (
             <div className="flex flex-col h-full p-3 bg-yellow-50 justify-between">
-                <MinimalHeader icon={<Icons.NoteWidget />} title={widget.title} />
+                <div className="flex flex-col items-start gap-1">
+                    <div className="text-slate-900">
+                        <Icons.NoteWidget size={18} strokeWidth={2.5} />
+                    </div>
+                    <div className="font-bold text-sm leading-tight truncate text-slate-900">{widget.title}</div>
+                </div>
                 <div className="flex-1 overflow-hidden relative">
                     {latestNote ? (
                          <div className="text-[11px] text-slate-600 font-medium leading-relaxed line-clamp-3 whitespace-pre-wrap" dangerouslySetInnerHTML={{__html: latestNote.content}}></div>
@@ -527,6 +562,7 @@ export const ListFull: React.FC<FullViewProps> = ({ widget, updateWidget, isSele
 };
 
 export const RatingFull: React.FC<FullViewProps> = ({ widget, updateWidget, isSelectionMode, setIsSelectionMode }) => {
+    // ... same as before
     const data = widget.data as { items: RatingItem[]; categories: string[] };
     const [activeCategory, setActiveCategory] = useState<string | null>(null);
     const [showAddModal, setShowAddModal] = useState(false);
@@ -626,37 +662,54 @@ export const RatingFull: React.FC<FullViewProps> = ({ widget, updateWidget, isSe
 };
 
 export const CountdownFull: React.FC<FullViewProps> = ({ widget, updateWidget }) => {
+    // ... existing CountdownFull
     const data = widget.data as { targetDate: string; eventName: string };
+    const [date, setDate] = useState(data.targetDate);
+    const [name, setName] = useState(data.eventName);
     
+    useEffect(() => {
+        if (date !== data.targetDate || name !== data.eventName) {
+            const timeout = setTimeout(() => {
+                updateWidget({ ...widget, data: { targetDate: date, eventName: name } });
+            }, 500);
+            return () => clearTimeout(timeout);
+        }
+    }, [date, name]);
+
+    const handleColorChange = (color: string) => {
+        updateWidget({ ...widget, color });
+    };
+
     return (
         <div className="space-y-6 pt-4">
-            <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">事件名称</label>
+            <div className="flex flex-col gap-1">
+                <label className="text-xs font-bold text-slate-400">事件名称</label>
                 <input 
-                    value={data.eventName} 
-                    onChange={(e) => updateWidget({ ...widget, data: { ...data, eventName: e.target.value } })}
-                    className="w-full text-2xl font-bold border-b border-slate-200 py-2 focus:outline-none focus:border-[var(--primary-color)] bg-transparent text-slate-800" 
-                />
-            </div>
-            
-            <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">目标日期</label>
-                <input 
-                    type="date"
-                    value={data.targetDate} 
-                    onChange={(e) => updateWidget({ ...widget, data: { ...data, targetDate: e.target.value } })}
-                    className="w-full text-xl font-medium border-b border-slate-200 py-2 focus:outline-none focus:border-[var(--primary-color)] bg-transparent text-slate-800" 
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-[var(--primary-color)] transition"
+                    value={name}
+                    onChange={e => setName(e.target.value)}
+                    placeholder="输入事件..."
                 />
             </div>
 
-            <div className="space-y-3 pt-4">
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">卡片颜色</label>
-                <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
+            <div className="flex flex-col gap-1">
+                <label className="text-xs font-bold text-slate-400">目标日期</label>
+                <input 
+                    type="date"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-[var(--primary-color)] transition"
+                    value={date}
+                    onChange={e => setDate(e.target.value)}
+                />
+            </div>
+
+            <div className="flex flex-col gap-2">
+                <label className="text-xs font-bold text-slate-400">卡片颜色</label>
+                <div className="flex gap-3 flex-wrap">
                     {COLORS.map(c => (
                         <button 
-                            key={c} 
-                            onClick={() => updateWidget({ ...widget, color: c })}
-                            className={`w-12 h-12 rounded-full shadow-sm shrink-0 transition-transform ${widget.color === c ? 'scale-110 ring-2 ring-slate-400 ring-offset-2' : ''}`}
+                            key={c}
+                            onClick={() => handleColorChange(c)}
+                            className={`w-10 h-10 rounded-full border-2 transition-transform ${widget.color === c ? 'scale-110 border-slate-400' : 'border-transparent hover:scale-105'}`}
                             style={{ backgroundColor: c }}
                         />
                     ))}
@@ -667,350 +720,440 @@ export const CountdownFull: React.FC<FullViewProps> = ({ widget, updateWidget })
 };
 
 export const LastDoneFull: React.FC<FullViewProps> = ({ widget, updateWidget }) => {
+    // ... existing LastDoneFull
     const data = widget.data as { lastDate: number; frequencyDays: number; history?: number[] };
-    const history = data.history || [data.lastDate];
+    const [freq, setFreq] = useState(data.frequencyDays.toString());
+    const daysSince = differenceInDays(new Date(), new Date(data.lastDate));
 
-    const handleCheckIn = () => {
+    const handleDoIt = () => {
         const now = Date.now();
-        updateWidget({ 
-            ...widget, 
-            data: { 
-                ...data, 
-                lastDate: now,
-                history: [now, ...history]
-            } 
-        });
+        const newHistory = [now, ...(data.history || [])].slice(0, 20); // keep last 20
+        updateWidget({ ...widget, data: { ...data, lastDate: now, history: newHistory } });
+    };
+
+    const handleFreqChange = (val: string) => {
+        setFreq(val);
+        const days = parseInt(val);
+        if (!isNaN(days) && days > 0) {
+            updateWidget({ ...widget, data: { ...data, frequencyDays: days } });
+        }
+    };
+
+    const handleColorChange = (color: string) => {
+        updateWidget({ ...widget, color });
     };
 
     return (
-        <div className="flex flex-col h-full pt-4">
-             <div className="flex items-center justify-between mb-8">
-                <div>
-                     <div className="text-6xl font-black text-slate-800 tracking-tighter">
-                         {differenceInDays(new Date(), new Date(data.lastDate))}
-                     </div>
-                     <div className="text-sm font-bold text-slate-400">天前</div>
-                </div>
-                <button 
-                    onClick={handleCheckIn}
-                    className="w-20 h-20 rounded-full bg-[var(--primary-color)] text-white shadow-xl flex items-center justify-center hover:scale-105 active:scale-95 transition"
-                >
-                    <Icons.Check size={40} strokeWidth={3} />
-                </button>
-             </div>
-
-             <div className="flex-1">
-                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">历史记录</h4>
-                 <div className="space-y-2">
-                     {history.slice(0, 10).map((ts, idx) => (
-                         <div key={idx} className="flex justify-between items-center py-3 border-b border-slate-100">
-                             <span className="font-medium text-slate-700">{format(ts, 'yyyy年MM月dd日 HH:mm', { locale: zhCN })}</span>
-                             <span className="text-xs text-slate-400">{idx === 0 ? '最新' : ''}</span>
-                         </div>
-                     ))}
+        <div className="space-y-8 pt-4">
+             <div className="flex flex-col items-center justify-center py-6">
+                 <div className="text-[100px] font-black leading-none tracking-tighter text-[var(--primary-color)]">
+                     {daysSince}
                  </div>
+                 <div className="text-slate-400 font-bold tracking-widest uppercase">天前</div>
              </div>
 
-             <div className="mt-8 pt-4 border-t border-slate-100">
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-3">卡片颜色</label>
-                <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
-                    {COLORS.map(c => (
-                        <button 
-                            key={c} 
-                            onClick={() => updateWidget({ ...widget, color: c })}
-                            className={`w-8 h-8 rounded-full shadow-sm shrink-0 transition-transform ${widget.color === c ? 'scale-110 ring-2 ring-slate-400 ring-offset-2' : ''}`}
-                            style={{ backgroundColor: c }}
-                        />
-                    ))}
+             <button 
+                onClick={handleDoIt}
+                className="w-full py-4 bg-[var(--primary-color)] text-white text-xl font-bold rounded-2xl shadow-lg active:scale-95 transition flex items-center justify-center gap-2"
+             >
+                 <Icons.Check size={28} /> 刚刚做了!
+             </button>
+
+             <div className="space-y-4">
+                <div className="flex flex-col gap-1">
+                    <label className="text-xs font-bold text-slate-400">重复频率 (天)</label>
+                    <input 
+                        type="number"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-[var(--primary-color)] transition"
+                        value={freq}
+                        onChange={e => handleFreqChange(e.target.value)}
+                    />
                 </div>
+
+                <div>
+                    <label className="text-xs font-bold text-slate-400 mb-2 block">背景颜色</label>
+                    <div className="flex gap-3 flex-wrap">
+                        {COLORS.map(c => (
+                            <button 
+                                key={c}
+                                onClick={() => handleColorChange(c)}
+                                className={`w-10 h-10 rounded-full border-2 transition-transform ${widget.color === c ? 'scale-110 border-slate-400' : 'border-transparent hover:scale-105'}`}
+                                style={{ backgroundColor: c }}
+                            />
+                        ))}
+                    </div>
+                </div>
+
+                {data.history && data.history.length > 0 && (
+                    <div className="pt-4 border-t border-slate-100">
+                        <label className="text-xs font-bold text-slate-400 mb-2 block">历史记录</label>
+                        <div className="space-y-2">
+                            {data.history.map((ts, idx) => (
+                                <div key={idx} className="flex justify-between text-sm text-slate-600 bg-slate-50 p-2 rounded-lg">
+                                    <span>{format(ts, 'yyyy-MM-dd HH:mm')}</span>
+                                    <span className="text-slate-400 text-xs">记录</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
              </div>
         </div>
     );
 };
 
 export const PlanFull: React.FC<FullViewProps> = ({ widget, updateWidget }) => {
+    // ... existing PlanFull
     const data = widget.data as { questions: PlanQuestion[]; records: PlanRecords };
-    const [date, setDate] = useState(new Date());
-    const dateStr = format(date, 'yyyy-MM-dd');
+    const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
     const [editMode, setEditMode] = useState(false);
-    const [newQuestionText, setNewQuestionText] = useState('');
+    
+    // Generate simple calendar strip (last 7 days)
+    const dates = eachDayOfInterval({
+        start: subDays(new Date(), 6),
+        end: new Date()
+    });
 
-    const recordsForDate = data.records[dateStr] || {};
+    const currentRecord = data.records[selectedDate] || {};
 
-    const handleAnswer = (qId: string, val: string) => {
-        const newRecords = { 
-            ...data.records,
-            [dateStr]: { ...recordsForDate, [qId]: val }
-        };
+    const handleAnswerChange = (qId: string, text: string) => {
+        const newRecord = { ...currentRecord, [qId]: text };
+        const newRecords = { ...data.records, [selectedDate]: newRecord };
         updateWidget({ ...widget, data: { ...data, records: newRecords } });
     };
 
     const addQuestion = () => {
-        if (!newQuestionText.trim()) return;
-        const newQ = { id: Date.now().toString(), text: newQuestionText };
-        updateWidget({ ...widget, data: { ...data, questions: [...data.questions, newQ] } });
-        setNewQuestionText('');
+        const text = prompt("输入新问题:");
+        if (text) {
+            const newQ = { id: Date.now().toString(), text };
+            updateWidget({ ...widget, data: { ...data, questions: [...data.questions, newQ] } });
+        }
     };
 
     const deleteQuestion = (id: string) => {
-        updateWidget({ ...widget, data: { ...data, questions: data.questions.filter(q => q.id !== id) } });
+        if (confirm("删除此问题?")) {
+            updateWidget({ ...widget, data: { ...data, questions: data.questions.filter(q => q.id !== id) } });
+        }
     };
 
     return (
-        <div className="flex flex-col h-full pt-2">
-            <div className="flex items-center justify-between mb-6 bg-slate-50 p-2 rounded-xl">
-                <button onClick={() => setDate(subDays(date, 1))} className="p-2 hover:bg-white rounded-lg transition text-slate-500"><Icons.ChevronLeft size={20}/></button>
-                <div className="text-base font-bold text-slate-700">{format(date, 'MM月dd日 EEEE', { locale: zhCN })}</div>
-                <button onClick={() => setDate(addDays(date, 1))} className={`p-2 hover:bg-white rounded-lg transition text-slate-500 ${isToday(date) ? 'opacity-30 cursor-default' : ''}`} disabled={isToday(date)}><Icons.ArrowRight size={20}/></button>
-            </div>
+        <div className="flex flex-col h-full pt-4">
+             {/* Date Strip */}
+             <div className="flex gap-2 overflow-x-auto pb-4 no-scrollbar">
+                 {dates.map(d => {
+                     const dateStr = format(d, 'yyyy-MM-dd');
+                     const isSelected = dateStr === selectedDate;
+                     const isT = isToday(d);
+                     return (
+                         <button 
+                            key={dateStr}
+                            onClick={() => setSelectedDate(dateStr)}
+                            className={`flex-none flex flex-col items-center justify-center w-14 h-16 rounded-xl border transition ${isSelected ? 'bg-[var(--primary-color)] text-white border-[var(--primary-color)] shadow-md' : 'bg-white border-slate-200 text-slate-500'}`}
+                         >
+                             <span className="text-[10px] font-bold uppercase">{isT ? '今' : format(d, 'EEE', { locale: zhCN })}</span>
+                             <span className="text-lg font-black">{format(d, 'd')}</span>
+                         </button>
+                     );
+                 })}
+             </div>
 
-            {editMode ? (
-                 <div className="flex-1 overflow-y-auto">
-                     <div className="mb-4 flex justify-between items-center">
-                         <h4 className="font-bold text-slate-800">管理问题</h4>
-                         <button onClick={() => setEditMode(false)} className="text-xs text-[var(--primary-color)] font-bold">完成</button>
-                     </div>
-                     <div className="space-y-2 mb-4">
-                         {data.questions.map(q => (
-                             <div key={q.id} className="flex gap-2 items-center">
-                                 <input className="flex-1 bg-white border border-slate-200 p-2 rounded-lg text-sm" value={q.text} onChange={(e) => {
-                                     const newQs = data.questions.map(item => item.id === q.id ? { ...item, text: e.target.value } : item);
-                                     updateWidget({ ...widget, data: { ...data, questions: newQs } });
-                                 }} />
-                                 <button onClick={() => deleteQuestion(q.id)} className="text-red-400 p-2"><Icons.Delete size={18}/></button>
-                             </div>
-                         ))}
-                     </div>
-                     <div className="flex gap-2">
-                         <input 
-                            placeholder="新问题..." 
-                            className="flex-1 bg-slate-50 border border-slate-200 p-2 rounded-lg text-sm"
-                            value={newQuestionText}
-                            onChange={e => setNewQuestionText(e.target.value)}
-                         />
-                         <button onClick={addQuestion} className="bg-[var(--primary-color)] text-white px-4 rounded-lg font-bold text-sm">添加</button>
-                     </div>
-                 </div>
-            ) : (
-                <div className="flex-1 overflow-y-auto space-y-6 pb-20">
-                    {data.questions.map(q => (
-                        <div key={q.id}>
-                            <div className="text-sm font-bold text-slate-800 mb-2">{q.text}</div>
-                            <textarea 
-                                className="w-full bg-yellow-50/50 border border-yellow-100 rounded-xl p-3 text-sm min-h-[80px] focus:outline-none focus:border-yellow-300 focus:bg-yellow-50 transition"
+             <div className="flex justify-between items-center mb-2 mt-2">
+                 <h3 className="font-bold text-slate-800">
+                     {isToday(parseISO(selectedDate)) ? '今日复盘' : selectedDate}
+                 </h3>
+                 <button onClick={() => setEditMode(!editMode)} className="text-xs text-slate-400 px-2 py-1 rounded bg-slate-100 hover:text-[var(--primary-color)]">
+                     {editMode ? '完成设置' : '管理问题'}
+                 </button>
+             </div>
+
+             <div className="flex-1 overflow-y-auto space-y-4 pb-12">
+                 {data.questions.map(q => (
+                     <div key={q.id} className="space-y-2">
+                         <div className="flex justify-between">
+                            <label className="text-sm font-bold text-slate-600 flex-1">{q.text}</label>
+                            {editMode && <button onClick={() => deleteQuestion(q.id)} className="text-red-400 ml-2"><Icons.Close size={16} /></button>}
+                         </div>
+                         {!editMode && (
+                             <textarea 
+                                className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm text-slate-700 outline-none focus:border-[var(--primary-color)] focus:ring-1 focus:ring-[var(--primary-color)] transition min-h-[80px]"
                                 placeholder="写下你的想法..."
-                                value={recordsForDate[q.id] || ''}
-                                onChange={(e) => handleAnswer(q.id, e.target.value)}
-                            />
-                        </div>
-                    ))}
-                    {data.questions.length === 0 && <div className="text-center text-slate-400 text-sm py-10">还没有设置问题</div>}
-                    
-                    <button onClick={() => setEditMode(true)} className="w-full py-3 text-slate-400 text-xs font-bold border border-dashed border-slate-200 rounded-xl hover:border-slate-300 hover:text-slate-600 transition">
-                        编辑问题模版
-                    </button>
-                </div>
-            )}
+                                value={currentRecord[q.id] || ''}
+                                onChange={e => handleAnswerChange(q.id, e.target.value)}
+                             />
+                         )}
+                     </div>
+                 ))}
+                 {editMode && (
+                     <button onClick={addQuestion} className="w-full py-3 border-2 border-dashed border-slate-200 rounded-xl text-slate-400 font-bold hover:border-[var(--primary-color)] hover:text-[var(--primary-color)]">
+                         + 添加问题
+                     </button>
+                 )}
+             </div>
         </div>
     );
 };
 
 export const DataFull: React.FC<FullViewProps> = ({ widget, updateWidget }) => {
     const data = widget.data as { label: string; unit: string; points: DataPoint[] };
+    const [val, setVal] = useState('');
     const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-    const [value, setValue] = useState('');
-    const [loading, setLoading] = useState(false);
 
     const handleAdd = () => {
-        if (!date || !value) return;
-        const newPoint = { date, value: parseFloat(value) };
-        const newPoints = [...data.points, newPoint].sort((a, b) => a.date.localeCompare(b.date));
+        const num = parseFloat(val);
+        if (isNaN(num)) return;
+        
+        // Remove existing point for same date if exists, then add new
+        const newPoints = data.points.filter(p => p.date !== date);
+        newPoints.push({ date, value: num });
+        newPoints.sort((a, b) => a.date > b.date ? 1 : -1);
+        
         updateWidget({ ...widget, data: { ...data, points: newPoints } });
-        setValue('');
+        setVal('');
     };
 
-    const handleDelete = (idx: number) => {
-        const newPoints = [...data.points];
-        newPoints.splice(idx, 1);
-        updateWidget({ ...widget, data: { ...data, points: newPoints } });
+    const handleDelete = (d: string) => {
+        updateWidget({ ...widget, data: { ...data, points: data.points.filter(p => p.date !== d) } });
     };
-
-    const handleAnalyze = async () => {
-        if (data.points.length < 2) return;
-        setLoading(true);
-        const result = await analyzeDataTrend(data.label, data.points);
-        alert(result);
-        setLoading(false);
-    }
 
     return (
-        <div className="flex flex-col h-full pt-2">
-            <div className="h-48 w-full mb-6">
+        <div className="flex flex-col h-full pt-4 space-y-6">
+            <div className="h-48 w-full bg-slate-50 rounded-2xl p-2 relative">
                 <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={data.points}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                        <XAxis dataKey="date" hide />
-                        <YAxis hide domain={['auto', 'auto']} />
-                        <Tooltip 
-                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                            labelStyle={{ color: '#94a3b8', fontSize: '10px' }}
-                        />
-                        <Line type="monotone" dataKey="value" stroke="#9333ea" strokeWidth={3} dot={{ r: 3, fill: '#9333ea' }} activeDot={{ r: 6 }} />
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                        <XAxis dataKey="date" tick={{fontSize: 10}} tickFormatter={d => d.slice(5)} stroke="#94a3b8" />
+                        <YAxis tick={{fontSize: 10}} stroke="#94a3b8" />
+                        <Tooltip />
+                        <Line type="monotone" dataKey="value" stroke="#9333ea" strokeWidth={3} dot={{r: 4, fill: '#9333ea'}} />
                     </LineChart>
                 </ResponsiveContainer>
             </div>
 
-            <div className="flex gap-2 mb-6">
-                <input type="date" className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-2 text-xs" value={date} onChange={e => setDate(e.target.value)} />
-                <input type="number" className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="数值" value={value} onChange={e => setValue(e.target.value)} />
-                <button onClick={handleAdd} className="bg-[var(--primary-color)] text-white px-4 rounded-lg font-bold text-xs">记录</button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto border-t border-slate-100">
-                {data.points.slice().reverse().map((p, idx) => {
-                    const realIdx = data.points.length - 1 - idx;
-                    return (
-                        <div key={idx} className="flex justify-between items-center py-3 border-b border-slate-50">
-                            <span className="text-xs text-slate-500 font-medium">{p.date}</span>
-                            <div className="flex items-center gap-4">
-                                <span className="font-bold text-slate-800">{p.value} <span className="text-[10px] text-slate-400 font-normal">{data.unit}</span></span>
-                                <button onClick={() => handleDelete(realIdx)} className="text-slate-300 hover:text-red-400"><Icons.Delete size={14} /></button>
-                            </div>
-                        </div>
-                    );
-                })}
+            <div className="flex gap-2 items-end">
+                <div className="flex-1">
+                    <label className="text-[10px] font-bold text-slate-400 mb-1 block">日期</label>
+                    <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none" />
+                </div>
+                <div className="flex-1">
+                    <label className="text-[10px] font-bold text-slate-400 mb-1 block">数值 ({data.unit})</label>
+                    <input type="number" value={val} onChange={e => setVal(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none" placeholder="0.0" />
+                </div>
             </div>
             
-            <button 
-                onClick={handleAnalyze} 
-                disabled={loading || data.points.length < 2}
-                className="mt-4 flex items-center justify-center gap-2 w-full py-3 bg-indigo-50 text-indigo-600 rounded-xl font-bold text-xs disabled:opacity-50"
-            >
-                <Icons.AI size={16} />
-                {loading ? '分析中...' : 'AI 趋势分析'}
+            <button onClick={handleAdd} className="w-full bg-slate-900 text-white p-3 rounded-xl hover:bg-slate-700 transition flex items-center justify-center gap-2 font-bold shadow-md active:scale-[0.98]">
+                <Icons.Plus size={20} /> 记录数据
             </button>
+
+            <div className="flex justify-between items-center mt-2">
+                 <h4 className="font-bold text-slate-800">历史数据</h4>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-2 pb-12">
+                {[...data.points].reverse().map((p, i) => (
+                    <div key={p.date} className="flex justify-between items-center p-3 bg-white border border-slate-100 rounded-xl">
+                        <span className="text-slate-500 text-sm font-medium">{p.date}</span>
+                        <div className="flex items-center gap-4">
+                            <span className="font-bold text-slate-800">{p.value} <span className="text-xs text-slate-400 font-normal">{data.unit}</span></span>
+                            <button onClick={() => handleDelete(p.date)} className="text-slate-300 hover:text-red-400"><Icons.Close size={16} /></button>
+                        </div>
+                    </div>
+                ))}
+            </div>
         </div>
     );
 };
 
-export const NoteFull: React.FC<FullViewProps> = ({ widget, updateWidget, isSelectionMode, setIsSelectionMode, onImageClick }) => {
+export const NoteFull: React.FC<FullViewProps> = ({ widget, updateWidget, isSelectionMode, setIsSelectionMode, onImageClick, searchQuery }) => {
     const data = widget.data as { items: NotebookItem[] };
-    const items = data.items || [];
-    const [editingItem, setEditingItem] = useState<NotebookItem | null>(null);
-    const [filterTag, setFilterTag] = useState<string | null>(null);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [editingNote, setEditingNote] = useState<NotebookItem | null>(null);
     const editorRef = useRef<HTMLDivElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [showTagMenu, setShowTagMenu] = useState(false);
 
-    useEffect(() => { if(!isSelectionMode) setSelectedIds(new Set()); }, [isSelectionMode]);
+    useEffect(() => { if (!isSelectionMode) setSelectedIds(new Set()); }, [isSelectionMode]);
 
+    const items = data.items || [];
     const allTags = Array.from(new Set(items.flatMap(i => i.tags)));
-    const filteredItems = filterTag ? items.filter(i => i.tags.includes(filterTag)) : items;
+    const recentTags = allTags.slice(0, 8);
+
+    const filteredItems = searchQuery 
+        ? items.filter(i => i.content.toLowerCase().includes(searchQuery.toLowerCase()) || i.tags.some(t => t.toLowerCase().includes(searchQuery.toLowerCase())))
+        : items;
 
     const handleSave = () => {
         if (!editorRef.current) return;
         const content = editorRef.current.innerHTML;
-        if (!content.trim() && !content.includes('<img')) return;
+        if (!editorRef.current.innerText.trim() && !content.includes('<img')) return;
 
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = content;
-        const textContent = tempDiv.textContent || '';
+        const timestamp = Date.now();
+        const textContent = editorRef.current.innerText || '';
         const regex = /#[\w\u4e00-\u9fa5]+/g;
         const tags = textContent.match(regex)?.map(t => t.substring(1)) || [];
 
-        if (editingItem && editingItem.id !== 'new') {
-             const newItems = items.map(i => i.id === editingItem.id ? { ...i, content, tags } : i);
-             updateWidget({ ...widget, data: { ...data, items: newItems } });
+        if (editingNote) {
+            const newItems = data.items.map(i => i.id === editingNote.id ? { ...i, content, tags } : i);
+            updateWidget({ ...widget, data: { ...data, items: newItems } });
+            setEditingNote(null);
         } else {
-             const newItem: NotebookItem = {
-                 id: Date.now().toString(),
-                 content,
-                 tags,
-                 createdAt: Date.now()
-             };
-             updateWidget({ ...widget, data: { ...data, items: [newItem, ...items] } });
+            const newItem: NotebookItem = { id: timestamp.toString(), content, tags, createdAt: timestamp };
+            updateWidget({ ...widget, data: { ...data, items: [newItem, ...data.items] } });
         }
-        setEditingItem(null);
-    };
-
-    const deleteSelected = () => {
-        if(confirm(`删除选中的 ${selectedIds.size} 条笔记?`)) {
-            updateWidget({ ...widget, data: { ...data, items: items.filter(i => !selectedIds.has(i.id)) } });
-            setSelectedIds(new Set());
-            if(setIsSelectionMode) setIsSelectionMode(false);
-        }
+        editorRef.current.innerHTML = '';
     };
 
     const toggleSelection = (id: string) => {
         const newSet = new Set(selectedIds);
-        if (newSet.has(id)) newSet.delete(id);
-        else newSet.add(id);
+        if (newSet.has(id)) newSet.delete(id); else newSet.add(id);
         setSelectedIds(newSet);
     };
 
-    if (editingItem) {
-        return (
-            <div className="flex flex-col h-full pt-2">
-                <div className="flex justify-between items-center mb-4">
-                     <button onClick={() => setEditingItem(null)} className="text-slate-400 hover:text-slate-600 text-xs font-bold px-2 py-1">取消</button>
-                     <button onClick={handleSave} className="bg-[var(--primary-color)] text-white px-5 py-2 rounded-full text-xs font-bold shadow-md">保存</button>
-                </div>
-                <div 
-                    ref={editorRef}
-                    contentEditable
-                    className="flex-1 w-full text-slate-800 placeholder-slate-400 outline-none bg-transparent text-sm leading-relaxed empty:before:content-['写点什么...'] empty:before:text-slate-300 [&>ul]:list-disc [&>ul]:pl-5 [&_img]:max-w-[25%] [&_img]:inline-block [&_img]:m-1 [&_img]:rounded-md"
-                    dangerouslySetInnerHTML={{ __html: editingItem.id === 'new' ? '' : editingItem.content }}
-                />
-            </div>
-        );
-    }
+    const deleteSelected = () => {
+        if (confirm(`删除选中 ${selectedIds.size} 条笔记?`)) {
+            updateWidget({ ...widget, data: { ...data, items: data.items.filter(i => !selectedIds.has(i.id)) } });
+            setSelectedIds(new Set());
+            if (setIsSelectionMode) setIsSelectionMode(false);
+        }
+    };
+
+    const handleFormat = (command: string, value?: string) => {
+        if (command === 'hiliteColor') {
+             document.execCommand('hiliteColor', false, value || '#fef08a');
+        } else {
+            document.execCommand(command, false, value || '');
+        }
+        editorRef.current?.focus();
+    };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                if (typeof event.target?.result === 'string') {
+                    editorRef.current?.focus();
+                    document.execCommand('insertImage', false, event.target.result);
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+        e.target.value = '';
+    };
+
+    const handleTagInsert = (tag: string) => {
+        handleFormat('insertText', `#${tag} `);
+        setShowTagMenu(false);
+    };
+
+    const startEditing = (item: NotebookItem) => {
+        if (isSelectionMode) return;
+        setEditingNote(item);
+    };
+
+    useEffect(() => {
+        if (editingNote && editorRef.current) {
+            editorRef.current.innerHTML = editingNote.content;
+            // focus logic if needed
+        }
+    }, [editingNote]);
 
     return (
-        <div className="flex flex-col h-full pt-4 relative">
-             <ExpandableTagStrip tags={allTags} selectedTag={filterTag} onSelect={setFilterTag} />
-             
-             <div className="flex-1 overflow-y-auto space-y-3 pb-24 px-1">
-                 {filteredItems.map(item => (
-                     <div 
+        <div className="flex flex-col h-full relative pt-2">
+            <div className="flex-1 overflow-y-auto space-y-3 pb-40 no-scrollbar px-1">
+                {filteredItems.map(item => (
+                    <div 
                         key={item.id} 
-                        onClick={(e) => { 
-                            const target = e.target as HTMLElement;
-                            if (target.tagName === 'IMG' && onImageClick) {
-                                e.stopPropagation();
-                                onImageClick((target as HTMLImageElement).src);
-                                return;
-                            }
-                            if(isSelectionMode) toggleSelection(item.id); 
-                            else setEditingItem(item); 
-                        }}
-                        className={`bg-white p-4 rounded-xl border shadow-sm relative overflow-hidden active:scale-[0.99] transition-all ${isSelectionMode && selectedIds.has(item.id) ? 'ring-2 ring-[var(--primary-color)] bg-indigo-50/20 border-transparent' : 'border-slate-100'}`}
-                     >
-                        {isSelectionMode && (
-                            <div className={`absolute top-3 right-3 w-5 h-5 rounded-full border-2 flex items-center justify-center ${selectedIds.has(item.id) ? 'bg-[var(--primary-color)] border-[var(--primary-color)]' : 'border-slate-200 bg-white'}`}>
-                                {selectedIds.has(item.id) && <Icons.Check size={12} className="text-white" strokeWidth={3} />}
+                        onClick={() => isSelectionMode ? toggleSelection(item.id) : startEditing(item)}
+                        className={`bg-white p-3 rounded-xl border shadow-sm relative overflow-hidden active:scale-[0.99] transition-all 
+                            ${isSelectionMode && selectedIds.has(item.id) ? 'ring-2 ring-[var(--primary-color)] bg-indigo-50/20 border-transparent' : 'border-slate-100'}
+                            ${editingNote?.id === item.id ? 'ring-2 ring-[var(--primary-color)] border-transparent' : ''}
+                        `}
+                    >
+                         {isSelectionMode && (
+                            <div className={`absolute top-2 right-2 w-5 h-5 rounded-full border-2 flex items-center justify-center bg-white ${selectedIds.has(item.id) ? 'bg-[var(--primary-color)] border-[var(--primary-color)]' : 'border-slate-200'}`}>
+                                {selectedIds.has(item.id) && <Icons.Check size={12} className="text-white" />}
                             </div>
                         )}
-                        <div className="text-sm text-slate-700 leading-relaxed line-clamp-4 whitespace-pre-wrap [&_img]:max-w-[25%] [&_img]:inline-block [&_img]:m-1 [&_img]:rounded-md [&_img]:cursor-zoom-in" dangerouslySetInnerHTML={{__html: item.content}} />
-                        <div className="mt-2 flex gap-1.5 flex-wrap">
-                             {item.tags.map(t => <span key={t} className="text-[10px] bg-slate-50 text-slate-400 px-2 py-0.5 rounded-md font-medium">#{t}</span>)}
+                        <div 
+                             className="text-sm text-slate-700 leading-relaxed max-h-32 overflow-hidden relative pointer-events-none prose prose-sm max-w-none [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5"
+                             dangerouslySetInnerHTML={{__html: item.content}} 
+                        />
+                        <div className="mt-2 flex justify-between items-center">
+                            <div className="flex gap-1 flex-wrap">
+                                {item.tags.map(t => <span key={t} className="text-[9px] bg-slate-50 text-slate-400 px-1.5 py-0.5 rounded font-medium">#{t}</span>)}
+                            </div>
+                            <span className="text-[9px] text-slate-300">{format(item.createdAt, 'MM-dd')}</span>
                         </div>
-                     </div>
-                 ))}
-                 {items.length === 0 && <div className="text-center text-slate-300 text-xs py-8">暂无笔记</div>}
-             </div>
+                    </div>
+                ))}
+                {items.length === 0 && <div className="text-center text-slate-300 text-xs py-10">暂无笔记</div>}
+            </div>
 
-             {isSelectionMode ? (
+            {/* Input Area */}
+            {!isSelectionMode && (
+                <div className="absolute bottom-0 left-0 right-0 -mx-6 bg-white border-t border-slate-100 z-30">
+                    {showTagMenu && (
+                        <div className="absolute bottom-[100%] left-4 w-48 bg-white rounded-xl shadow-xl border border-slate-200 p-2 grid grid-cols-2 gap-1 animate-in slide-in-from-bottom-2 z-[70]">
+                            {recentTags.length > 0 ? recentTags.map(tag => (
+                                <button 
+                                    key={tag} 
+                                    onMouseDown={(e) => { e.preventDefault(); handleTagInsert(tag); }}
+                                    className="text-left text-xs font-bold text-slate-600 hover:bg-slate-50 hover:text-[var(--primary-color)] p-2 rounded-lg truncate"
+                                >
+                                    #{tag}
+                                </button>
+                            )) : (
+                                <div className="col-span-2 text-[10px] text-slate-400 text-center py-2">暂无标签</div>
+                            )}
+                        </div>
+                    )}
+
+                    <div className="flex items-center gap-4 px-4 py-2.5 bg-[#f8fafc]/80 backdrop-blur-md border-b border-slate-50">
+                        <button onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat('bold')} className="text-slate-400 hover:text-slate-700 transition"><Icons.Bold size={18} /></button>
+                        <button onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat('hiliteColor', '#fef08a')} className="text-slate-400 hover:text-yellow-500 transition"><Icons.Highlight size={18} /></button>
+                        <button onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat('insertUnorderedList')} className="text-slate-400 hover:text-slate-700 transition"><Icons.ListIcon size={18} /></button>
+                        <div className="w-px h-4 bg-slate-200 mx-1"></div>
+                        <button onMouseDown={(e) => e.preventDefault()} onClick={() => setShowTagMenu(!showTagMenu)} className={`text-slate-400 hover:text-slate-700 transition ${showTagMenu ? 'text-[var(--primary-color)]' : ''}`}><Icons.Hash size={18} /></button>
+                        
+                        <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
+                        <button onMouseDown={(e) => { e.preventDefault(); fileInputRef.current?.click(); }} className="text-slate-400 hover:text-slate-700 transition"><Icons.Image size={18} /></button>
+                    </div>
+
+                    <div className="p-4 bg-white">
+                        <div 
+                            ref={editorRef}
+                            contentEditable
+                            className="w-full text-slate-800 placeholder-slate-400 outline-none bg-transparent min-h-[80px] text-sm leading-relaxed empty:before:content-['添加笔记...'] empty:before:text-slate-300 
+                                        [&>ul]:list-disc [&>ul]:pl-5 
+                                        [&_img]:max-w-[25%] [&_img]:inline-block [&_img]:m-1 [&_img]:object-cover [&_img]:rounded-lg"
+                        />
+                        <div className="flex justify-end mt-2 items-center gap-2">
+                            {editingNote && (
+                                <button 
+                                    onClick={() => { setEditingNote(null); if(editorRef.current) editorRef.current.innerHTML=''; }}
+                                    className="text-slate-400 hover:text-slate-600 text-xs font-bold px-3 py-1.5"
+                                >
+                                    取消编辑
+                                </button>
+                            )}
+                            <button 
+                                onClick={handleSave}
+                                className={`bg-slate-900 text-white px-5 py-2 rounded-full text-xs font-bold hover:bg-slate-800 transition flex items-center gap-1 shadow-md ${editingNote ? 'bg-[var(--primary-color)]' : ''}`}
+                            >
+                                {editingNote ? '更新' : '保存'} <Icons.ArrowRight size={12} />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {isSelectionMode && (
                 <div className="absolute bottom-4 left-4 right-4 z-20">
-                    <button onClick={deleteSelected} disabled={selectedIds.size === 0} className="w-full bg-white rounded-2xl shadow-xl border border-slate-200 p-3 flex justify-center items-center gap-2 text-red-500 font-bold text-xs disabled:opacity-50">
-                        <Icons.Delete size={16}/> 删除选中 ({selectedIds.size})
+                    <button onClick={deleteSelected} disabled={selectedIds.size === 0} className="w-full bg-white border border-slate-200 text-red-500 font-bold py-3 rounded-2xl shadow-lg disabled:opacity-50 flex items-center justify-center gap-2">
+                        <Icons.Delete size={18}/> 删除选中 ({selectedIds.size})
                     </button>
                 </div>
-             ) : (
-                <div className="absolute bottom-6 right-6 z-10">
-                    <button onClick={() => setEditingItem({ id: 'new', content: '', tags: [], createdAt: Date.now() })} className="w-14 h-14 bg-[var(--primary-color)] text-white rounded-full shadow-lg flex items-center justify-center hover:scale-105 active:scale-95 transition">
-                        <Icons.Plus size={28} />
-                    </button>
-                </div>
-             )}
+            )}
         </div>
     );
 };

@@ -83,6 +83,10 @@ export default function App() {
   });
 
   const [isSelectionMode, setIsSelectionMode] = useState(false);
+  
+  // Search State
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Modal State
   const [activeWidgetId, setActiveWidgetId] = useState<string | null>(null);
@@ -110,6 +114,8 @@ export default function App() {
   // Reset selection mode when switching views
   useEffect(() => {
       setIsSelectionMode(false);
+      setShowSearch(false);
+      setSearchQuery('');
   }, [view]);
 
   // Main navigation swipe logic
@@ -128,10 +134,8 @@ export default function App() {
           if (diff < 0) { 
               // Swipe LEFT (Finger moves left) -> Go to Dashboard (if on Notes)
               if (view === 'NOTES') setView('DASHBOARD');
-          } else { 
-              // Swipe RIGHT (Finger moves right) -> Go to Notes (if on Dashboard)
-              if (view === 'DASHBOARD') setView('NOTES');
-          }
+          } 
+          // Removed else block to disable Dashboard -> Notes swipe (Right swipe)
       }
   };
 
@@ -275,12 +279,20 @@ export default function App() {
             )}
 
             {view === 'NOTES' && (
-            <button 
-                onClick={() => setIsSelectionMode(!isSelectionMode)}
-                className={`p-2 rounded-full transition ${isSelectionMode ? 'bg-[var(--primary-color)] text-white shadow-md' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}
-            >
-                {isSelectionMode ? <Icons.Close size={20} /> : <Icons.CheckSquare size={20} />}
-            </button>
+            <>
+                <button 
+                    onClick={() => { setShowSearch(!showSearch); if(showSearch) setSearchQuery(''); }}
+                    className={`p-2 rounded-full transition ${showSearch ? 'bg-white shadow-sm text-[var(--primary-color)]' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}
+                >
+                    <Icons.ListIcon size={20} />
+                </button>
+                <button 
+                    onClick={() => setIsSelectionMode(!isSelectionMode)}
+                    className={`p-2 rounded-full transition ${isSelectionMode ? 'bg-[var(--primary-color)] text-white shadow-md' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}
+                >
+                    {isSelectionMode ? <Icons.Close size={20} /> : <Icons.CheckSquare size={20} />}
+                </button>
+            </>
             )}
         </div>
       </header>
@@ -317,6 +329,9 @@ export default function App() {
             setNotes={setNotes}
             isSelectionMode={isSelectionMode}
             setIsSelectionMode={setIsSelectionMode}
+            showSearch={showSearch}
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
           />
         )}
       </main>
@@ -402,7 +417,10 @@ const NotesView: React.FC<{
     setNotes: (notes: Note[]) => void;
     isSelectionMode: boolean;
     setIsSelectionMode: (b: boolean) => void;
-}> = ({ notes, onAddNote, onDeleteNote, onUpdateNote, onImageClick, setNotes, isSelectionMode, setIsSelectionMode, widgets, onUpdateWidget }) => {
+    showSearch: boolean;
+    searchQuery: string;
+    setSearchQuery: (s: string) => void;
+}> = ({ notes, onAddNote, onDeleteNote, onUpdateNote, onImageClick, setNotes, isSelectionMode, setIsSelectionMode, widgets, onUpdateWidget, showSearch, searchQuery, setSearchQuery }) => {
     const [filterTag, setFilterTag] = useState<string | null>(null);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -417,7 +435,14 @@ const NotesView: React.FC<{
     }, [isSelectionMode]);
 
     const allTags = Array.from(new Set(notes.flatMap(n => n.tags)));
-    const filteredNotes = filterTag ? notes.filter(n => n.tags.includes(filterTag)) : notes;
+    
+    let filteredNotes = notes;
+    if (showSearch && searchQuery) {
+        filteredNotes = notes.filter(n => n.content.toLowerCase().includes(searchQuery.toLowerCase()) || n.tags.some(t => t.toLowerCase().includes(searchQuery.toLowerCase())));
+    } else if (filterTag) {
+        filteredNotes = notes.filter(n => n.tags.includes(filterTag));
+    }
+
     const recentTags = allTags.slice(0, 8);
 
     const handleSend = () => {
@@ -448,10 +473,25 @@ const NotesView: React.FC<{
         if (file) {
           const reader = new FileReader();
           reader.onload = (event) => {
-            const result = event.target?.result;
-            if (typeof result === 'string') {
+            const target = event.target as FileReader;
+            if (target && typeof target.result === 'string') {
                 editorRef.current?.focus();
-                document.execCommand('insertImage', false, result);
+                document.execCommand('insertImage', false, target.result);
+            }
+          };
+          reader.readAsDataURL(file);
+        }
+        e.target.value = '';
+    };
+
+    const handleFileChangeRaw = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = () => {
+            if (typeof reader.result === 'string') {
+                editorRef.current?.focus();
+                document.execCommand('insertImage', false, reader.result);
             }
           };
           reader.readAsDataURL(file);
@@ -523,7 +563,17 @@ const NotesView: React.FC<{
     return (
         <div className="flex flex-col h-full relative">
             <div className="px-6 pt-2 pb-0 bg-gradient-to-b from-orange-50 to-[#f8fafc] sticky top-0 z-10">
-                <ExpandableTagStrip tags={allTags} selectedTag={filterTag} onSelect={setFilterTag} />
+                {showSearch ? (
+                    <input 
+                        autoFocus
+                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none shadow-sm mb-2"
+                        placeholder="搜索笔记..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                ) : (
+                    <ExpandableTagStrip tags={allTags} selectedTag={filterTag} onSelect={setFilterTag} />
+                )}
             </div>
 
             <div className="flex-1 overflow-y-auto space-y-3 pb-32 px-4 pt-2 no-scrollbar">
@@ -687,13 +737,13 @@ const AddWidgetModal: React.FC<{
     const [selectedCat, setSelectedCat] = useState<string>(defaultCat);
 
     const types: { type: WidgetType, label: string, desc: string, icon: React.ReactNode, style: string }[] = [
-        { type: WidgetType.PLAN, label: '计划', desc: '每日复盘、打卡', icon: <Icons.Plan size={28} />, style: 'bg-emerald-50 text-emerald-600 border-emerald-100 hover:bg-emerald-100 hover:border-emerald-200' },
-        { type: WidgetType.NOTE, label: '笔记', desc: '便签、备忘录', icon: <Icons.NoteWidget size={28} />, style: 'bg-yellow-50 text-yellow-600 border-yellow-100 hover:bg-yellow-100 hover:border-yellow-200' },
-        { type: WidgetType.LIST, label: '清单', desc: '待办事项、购物单', icon: <Icons.List size={28} />, style: 'bg-blue-50 text-blue-600 border-blue-100 hover:bg-blue-100 hover:border-blue-200' },
-        { type: WidgetType.RATING, label: '书影音', desc: '评分记录、收藏', icon: <Icons.Rating size={28} />, style: 'bg-amber-50 text-amber-600 border-amber-100 hover:bg-amber-100 hover:border-amber-200' },
-        { type: WidgetType.DATA, label: '数据', desc: '折线图、趋势', icon: <Icons.Data size={28} />, style: 'bg-purple-50 text-purple-600 border-purple-100 hover:bg-purple-100 hover:border-purple-200' },
-        { type: WidgetType.COUNTDOWN, label: '倒数日', desc: '重要日子、纪念日', icon: <Icons.Countdown size={28} />, style: 'bg-rose-50 text-rose-600 border-rose-100 hover:bg-rose-100 hover:border-rose-200' },
-        { type: WidgetType.LAST_DONE, label: '上次', desc: '上次做某事的时间', icon: <Icons.LastDone size={28} />, style: 'bg-cyan-50 text-cyan-600 border-cyan-100 hover:bg-cyan-100 hover:border-cyan-200' },
+        { type: WidgetType.PLAN, label: '计划', desc: '复盘打卡', icon: <Icons.Plan size={24} />, style: 'bg-emerald-50 text-emerald-600 border-emerald-100 hover:bg-emerald-100 hover:border-emerald-200' },
+        { type: WidgetType.NOTE, label: '笔记', desc: '便签备忘', icon: <Icons.NoteWidget size={24} />, style: 'bg-yellow-50 text-yellow-600 border-yellow-100 hover:bg-yellow-100 hover:border-yellow-200' },
+        { type: WidgetType.LIST, label: '清单', desc: '待办购物', icon: <Icons.List size={24} />, style: 'bg-blue-50 text-blue-600 border-blue-100 hover:bg-blue-100 hover:border-blue-200' },
+        { type: WidgetType.RATING, label: '书影音', desc: '评分记录', icon: <Icons.Rating size={24} />, style: 'bg-amber-50 text-amber-600 border-amber-100 hover:bg-amber-100 hover:border-amber-200' },
+        { type: WidgetType.DATA, label: '数据', desc: '折线趋势', icon: <Icons.Data size={24} />, style: 'bg-purple-50 text-purple-600 border-purple-100 hover:bg-purple-100 hover:border-purple-200' },
+        { type: WidgetType.COUNTDOWN, label: '倒数日', desc: '重要日子', icon: <Icons.Countdown size={24} />, style: 'bg-rose-50 text-rose-600 border-rose-100 hover:bg-rose-100 hover:border-rose-200' },
+        { type: WidgetType.LAST_DONE, label: '上次', desc: '上次时间', icon: <Icons.LastDone size={24} />, style: 'bg-cyan-50 text-cyan-600 border-cyan-100 hover:bg-cyan-100 hover:border-cyan-200' },
     ];
 
     return (
@@ -702,20 +752,20 @@ const AddWidgetModal: React.FC<{
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
         >
-            <div className="bg-white w-full max-w-lg rounded-[2rem] shadow-2xl p-6 animate-in slide-in-from-bottom-10 border border-white/50">
-                <div className="flex justify-between items-center mb-6 px-2">
-                    <h3 className="text-xl font-black text-slate-800 tracking-tight">添加新模块</h3>
-                    <button onClick={onClose} className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 transition"><Icons.Close size={20}/></button>
+            <div className="bg-white w-full max-w-sm rounded-[2rem] shadow-2xl p-5 animate-in slide-in-from-bottom-10 border border-white/50 max-h-[85vh] overflow-y-auto">
+                <div className="flex justify-between items-center mb-4 px-1">
+                    <h3 className="text-lg font-black text-slate-800 tracking-tight">添加新模块</h3>
+                    <button onClick={onClose} className="p-1.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 transition"><Icons.Close size={18}/></button>
                 </div>
 
-                <div className="mb-6 px-1">
-                    <label className="text-xs font-bold text-slate-400 uppercase mb-3 block tracking-wider">选择分类</label>
+                <div className="mb-4 px-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase mb-2 block tracking-wider">选择分类</label>
                     <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
                         {categories.map(c => (
                             <button 
                                 key={c}
                                 onClick={() => setSelectedCat(c)}
-                                className={`flex-none px-4 py-2 rounded-full text-sm font-bold border transition-all ${selectedCat === c ? 'bg-[var(--primary-color)] text-white border-[var(--primary-color)] shadow-lg scale-105' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}
+                                className={`flex-none px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${selectedCat === c ? 'bg-[var(--primary-color)] text-white border-[var(--primary-color)] shadow-md scale-105' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}
                             >
                                 {c}
                             </button>
@@ -723,17 +773,17 @@ const AddWidgetModal: React.FC<{
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3">
                     {types.map(t => (
                         <button 
                             key={t.type} 
                             onClick={() => onSelect(t.type, selectedCat)}
-                            className={`flex flex-col items-start justify-between gap-3 p-5 rounded-2xl border transition-all duration-200 active:scale-95 ${t.style}`}
+                            className={`flex flex-col items-start justify-between gap-2 p-4 rounded-2xl border transition-all duration-200 active:scale-95 ${t.style}`}
                         >
-                            <div className="p-3 bg-white/80 backdrop-blur-sm rounded-xl shadow-sm">{t.icon}</div>
+                            <div className="p-2 bg-white/80 backdrop-blur-sm rounded-xl shadow-sm">{t.icon}</div>
                             <div className="text-left">
-                                <div className="text-base font-bold mb-0.5">{t.label}</div>
-                                <div className="text-xs opacity-70 font-medium">{t.desc}</div>
+                                <div className="text-sm font-bold mb-0.5">{t.label}</div>
+                                <div className="text-[10px] opacity-70 font-medium">{t.desc}</div>
                             </div>
                         </button>
                     ))}
@@ -954,6 +1004,8 @@ const DashboardView: React.FC<{
 const WidgetModal: React.FC<{ widget: Widget, widgets: Widget[], onClose: () => void, onUpdate: (w: Widget) => void, onImageClick: (src: string) => void }> = ({ widget, widgets, onClose, onUpdate, onImageClick }) => {
   const isFullscreen = widget.type === WidgetType.LIST || widget.type === WidgetType.RATING || widget.type === WidgetType.PLAN || widget.type === WidgetType.NOTE;
   const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Swipe to exit logic (Left Swipe -> Close)
   const touchStart = useRef(0);
@@ -980,15 +1032,34 @@ const WidgetModal: React.FC<{ widget: Widget, widgets: Widget[], onClose: () => 
                     </div>
                     <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{widget.type === 'PLAN' ? '计划' : widget.type === 'NOTE' ? '笔记' : widget.type}</span>
                 </div>
-                <input 
-                    value={widget.title} 
-                    onChange={(e) => onUpdate({...widget, title: e.target.value})}
-                    className="text-4xl font-black text-slate-800 tracking-tight bg-transparent border-none focus:outline-none w-full placeholder-slate-300 p-0"
-                    placeholder="输入标题..."
-                />
+                {showSearch && widget.type === WidgetType.NOTE ? (
+                    <input 
+                        autoFocus
+                        className="text-4xl font-black text-slate-800 tracking-tight bg-transparent border-b border-slate-200 focus:outline-none w-full placeholder-slate-300 p-0"
+                        placeholder="搜索..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                ) : (
+                    <input 
+                        value={widget.title} 
+                        onChange={(e) => onUpdate({...widget, title: e.target.value})}
+                        className="text-4xl font-black text-slate-800 tracking-tight bg-transparent border-none focus:outline-none w-full placeholder-slate-300 p-0"
+                        placeholder="输入标题..."
+                    />
+                )}
             </div>
             
             <div className="flex items-center gap-2 ml-4">
+                {widget.type === WidgetType.NOTE && (
+                    <button 
+                        onClick={() => { setShowSearch(!showSearch); if(showSearch) setSearchQuery(''); }}
+                        className={`p-2 rounded-full transition ${showSearch ? 'bg-white shadow-sm text-[var(--primary-color)]' : 'bg-slate-100 text-slate-400 hover:text-slate-600 hover:bg-slate-200'}`}
+                    >
+                        <Icons.ListIcon size={20} />
+                    </button>
+                )}
+
                 {(widget.type === WidgetType.NOTE || widget.type === WidgetType.LIST || widget.type === WidgetType.RATING) && (
                     <button 
                         onClick={() => setIsSelectionMode(!isSelectionMode)}
@@ -1011,7 +1082,7 @@ const WidgetModal: React.FC<{ widget: Widget, widgets: Widget[], onClose: () => 
              {widget.type === WidgetType.LIST && <ListFull widget={widget} updateWidget={onUpdate} isSelectionMode={isSelectionMode} setIsSelectionMode={setIsSelectionMode} allWidgets={widgets} />}
              {widget.type === WidgetType.RATING && <RatingFull widget={widget} updateWidget={onUpdate} isSelectionMode={isSelectionMode} setIsSelectionMode={setIsSelectionMode} />}
              {widget.type === WidgetType.PLAN && <PlanFull widget={widget} updateWidget={onUpdate} />}
-             {widget.type === WidgetType.NOTE && <NoteFull widget={widget} updateWidget={onUpdate} isSelectionMode={isSelectionMode} setIsSelectionMode={setIsSelectionMode} onImageClick={onImageClick} />}
+             {widget.type === WidgetType.NOTE && <NoteFull widget={widget} updateWidget={onUpdate} isSelectionMode={isSelectionMode} setIsSelectionMode={setIsSelectionMode} onImageClick={onImageClick} searchQuery={searchQuery} />}
         </div>
       </div>
     );
