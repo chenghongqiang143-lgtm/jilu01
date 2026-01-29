@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Icons } from './components/Icons';
 import { Note, Widget, WidgetType, NotebookItem } from './types';
@@ -347,6 +346,7 @@ export default function App() {
           widgets={widgets}
           onClose={() => setActiveWidgetId(null)}
           onUpdate={handleUpdateWidget}
+          onImageClick={setFullscreenImg}
         />
       )}
 
@@ -447,11 +447,11 @@ const NotesView: React.FC<{
         const file = e.target.files?.[0];
         if (file) {
           const reader = new FileReader();
-          reader.onload = () => {
-            const result = reader.result;
+          reader.onload = (event) => {
+            const result = event.target?.result;
             if (typeof result === 'string') {
                 editorRef.current?.focus();
-                document.execCommand('insertImage', false, result as string);
+                document.execCommand('insertImage', false, result);
             }
           };
           reader.readAsDataURL(file);
@@ -545,7 +545,7 @@ const NotesView: React.FC<{
                         <div 
                              className="text-sm text-slate-700 leading-relaxed prose prose-sm max-w-none 
                                         [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5
-                                        [&_img]:max-w-full [&_img]:rounded-lg [&_img]:my-2 cursor-auto"
+                                        [&_img]:max-w-[25%] [&_img]:inline-block [&_img]:m-1 [&_img]:object-cover [&_img]:rounded-lg [&_img]:cursor-zoom-in"
                              dangerouslySetInnerHTML={{__html: note.content}} 
                              onClick={(e) => {
                                  const target = e.target as HTMLElement;
@@ -610,7 +610,7 @@ const NotesView: React.FC<{
                                 contentEditable
                                 className="w-full text-slate-800 placeholder-slate-400 outline-none bg-transparent min-h-[80px] text-sm leading-relaxed empty:before:content-['写下现在的想法...'] empty:before:text-slate-300 
                                             [&>ul]:list-disc [&>ul]:pl-5 
-                                            [&_img]:max-w-[40%] [&_img]:inline-block [&_img]:m-1 [&_img]:object-cover [&_img]:rounded-lg"
+                                            [&_img]:max-w-[25%] [&_img]:inline-block [&_img]:m-1 [&_img]:object-cover [&_img]:rounded-lg"
                             />
                             
                             <div className="flex justify-end mt-2 items-center gap-2">
@@ -951,7 +951,7 @@ const DashboardView: React.FC<{
   );
 };
 
-const WidgetModal: React.FC<{ widget: Widget, widgets: Widget[], onClose: () => void, onUpdate: (w: Widget) => void }> = ({ widget, widgets, onClose, onUpdate }) => {
+const WidgetModal: React.FC<{ widget: Widget, widgets: Widget[], onClose: () => void, onUpdate: (w: Widget) => void, onImageClick: (src: string) => void }> = ({ widget, widgets, onClose, onUpdate, onImageClick }) => {
   const isFullscreen = widget.type === WidgetType.LIST || widget.type === WidgetType.RATING || widget.type === WidgetType.PLAN || widget.type === WidgetType.NOTE;
   const [isSelectionMode, setIsSelectionMode] = useState(false);
 
@@ -1011,7 +1011,7 @@ const WidgetModal: React.FC<{ widget: Widget, widgets: Widget[], onClose: () => 
              {widget.type === WidgetType.LIST && <ListFull widget={widget} updateWidget={onUpdate} isSelectionMode={isSelectionMode} setIsSelectionMode={setIsSelectionMode} allWidgets={widgets} />}
              {widget.type === WidgetType.RATING && <RatingFull widget={widget} updateWidget={onUpdate} isSelectionMode={isSelectionMode} setIsSelectionMode={setIsSelectionMode} />}
              {widget.type === WidgetType.PLAN && <PlanFull widget={widget} updateWidget={onUpdate} />}
-             {widget.type === WidgetType.NOTE && <NoteFull widget={widget} updateWidget={onUpdate} isSelectionMode={isSelectionMode} setIsSelectionMode={setIsSelectionMode} />}
+             {widget.type === WidgetType.NOTE && <NoteFull widget={widget} updateWidget={onUpdate} isSelectionMode={isSelectionMode} setIsSelectionMode={setIsSelectionMode} onImageClick={onImageClick} />}
         </div>
       </div>
     );

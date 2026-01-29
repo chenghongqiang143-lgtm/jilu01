@@ -1,9 +1,8 @@
-
 import React, { useState, useRef, useEffect } from 'react';
-import { Widget, WidgetType, PlaylistItem, RatingItem, DataPoint, PlanQuestion, PlanRecords, NotebookItem } from '../types';
+import { Widget, WidgetType, PlaylistItem, RatingItem, DataPoint, PlanQuestion, PlanRecords, NotebookItem, Note } from '../types';
 import { Icons } from './Icons';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { format, differenceInDays, addDays, subDays, startOfWeek, isSameDay, isToday, eachDayOfInterval, addWeeks, subWeeks, endOfWeek } from 'date-fns';
+import { format, differenceInDays, addDays, subDays, startOfWeek, isSameDay, isToday, eachDayOfInterval, addWeeks, subWeeks, endOfWeek, parseISO } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { analyzeDataTrend } from '../services/geminiService';
 
@@ -15,6 +14,7 @@ export interface FullViewProps {
     isSelectionMode?: boolean;
     setIsSelectionMode?: (b: boolean) => void;
     allWidgets?: Widget[];
+    onImageClick?: (src: string) => void;
 }
 
 // --- Shared Constants ---
@@ -43,11 +43,11 @@ const LIGHT_BG_COLORS = [
 // --- Shared Components ---
 
 export const MinimalHeader: React.FC<{ icon: React.ReactNode, title: string, color?: string }> = ({ icon, title, color }) => (
-    <div className="mb-3 flex items-center gap-2">
-        <div className={`w-8 border-b-2 pb-1 ${color ? 'text-white border-white/40' : 'text-slate-900 border-slate-900'}`}>
-            {React.cloneElement(icon as React.ReactElement<any>, { size: 24, strokeWidth: 2.5 })}
+    <div className="mb-1.5 flex items-center gap-1.5">
+        <div className={`w-5 border-b-[1.5px] pb-0.5 ${color ? 'text-white border-white/40' : 'text-slate-900 border-slate-900'}`}>
+            {React.cloneElement(icon as React.ReactElement<any>, { size: 16, strokeWidth: 2.5 })}
         </div>
-        <div className={`font-bold text-lg leading-tight truncate ${color ? 'text-white' : 'text-slate-900'}`}>{title}</div>
+        <div className={`font-bold text-sm leading-tight truncate ${color ? 'text-white' : 'text-slate-900'}`}>{title}</div>
     </div>
 );
 
@@ -178,18 +178,18 @@ export const WidgetPreview: React.FC<{ widget: Widget }> = ({ widget }) => {
       const remaining = data.items.filter(i => !i.completed).length - topItems.length;
 
       return (
-        <div className="flex flex-col h-full justify-between p-4">
+        <div className="flex flex-col h-full justify-between p-3">
           <MinimalHeader icon={<Icons.List />} title={widget.title} />
-          <div className="flex-1 flex flex-col justify-end space-y-2">
+          <div className="flex-1 flex flex-col justify-end space-y-1.5">
              {topItems.length > 0 ? topItems.map(item => (
-                 <div key={item.id} className="flex items-center gap-2 text-slate-600">
-                     <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${item.starred ? 'bg-amber-400' : 'bg-slate-300'}`}></div>
-                     <span className="text-xs truncate font-medium">{item.title}</span>
+                 <div key={item.id} className="flex items-center gap-1.5 text-slate-600">
+                     <div className={`w-1 h-1 rounded-full shrink-0 ${item.starred ? 'bg-amber-400' : 'bg-slate-300'}`}></div>
+                     <span className="text-[11px] truncate font-medium leading-tight">{item.title}</span>
                  </div>
              )) : (
-                 <div className="text-xs text-slate-300">暂无待办!</div>
+                 <div className="text-[10px] text-slate-300">暂无待办!</div>
              )}
-             {remaining > 0 && <div className="text-[10px] text-slate-400 pl-3.5">还有 {remaining} 项</div>}
+             {remaining > 0 && <div className="text-[9px] text-slate-400 pl-2.5">还有 {remaining} 项</div>}
           </div>
         </div>
       );
@@ -206,7 +206,7 @@ export const WidgetPreview: React.FC<{ widget: Widget }> = ({ widget }) => {
                  className="absolute inset-0 bg-cover bg-center opacity-60 blur-xl scale-150"
                  style={{ backgroundImage: `url(${latest.cover})` }}
                />
-               <div className="absolute inset-0 flex items-center justify-center p-4 z-10">
+               <div className="absolute inset-0 flex items-center justify-center p-3 z-10">
                  <img 
                    src={latest.cover} 
                    alt={latest.title} 
@@ -215,13 +215,13 @@ export const WidgetPreview: React.FC<{ widget: Widget }> = ({ widget }) => {
                </div>
             </div>
             
-            <div className="h-[35%] bg-white px-4 flex flex-col justify-center z-20">
-               <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{latest.category}</div>
+            <div className="h-[35%] bg-white px-3 flex flex-col justify-center z-20">
+               <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">{latest.category}</div>
                <div className="flex justify-between items-center">
-                 <div className="font-bold text-slate-900 text-base leading-tight truncate pr-2 flex-1">{latest.title}</div>
-                 <div className="flex items-center gap-1 text-amber-500 shrink-0">
-                   <span className="text-sm font-bold">{latest.rating}</span>
-                   <Icons.Rating size={12} fill="currentColor" />
+                 <div className="font-bold text-slate-900 text-xs leading-tight truncate pr-1 flex-1">{latest.title}</div>
+                 <div className="flex items-center gap-0.5 text-amber-500 shrink-0">
+                   <span className="text-xs font-bold">{latest.rating}</span>
+                   <Icons.Rating size={10} fill="currentColor" />
                  </div>
                </div>
             </div>
@@ -230,21 +230,21 @@ export const WidgetPreview: React.FC<{ widget: Widget }> = ({ widget }) => {
       }
 
       return (
-        <div className="flex flex-col h-full justify-between p-4">
+        <div className="flex flex-col h-full justify-between p-3">
             <MinimalHeader icon={<Icons.Rating />} title={widget.title} />
             {latest ? (
                 <div>
-                     <div className="text-lg font-bold text-slate-800 line-clamp-2 leading-tight">{latest.title}</div>
+                     <div className="text-sm font-bold text-slate-800 line-clamp-2 leading-tight">{latest.title}</div>
                      <div className="flex justify-between items-end mt-1">
-                        <div className="text-xs text-slate-500 truncate">{latest.category}</div>
-                        <div className="flex items-center gap-1 text-amber-500">
-                            <span className="text-xl font-bold">{latest.rating}</span>
-                            <Icons.Rating size={14} fill="currentColor" />
+                        <div className="text-[10px] text-slate-500 truncate">{latest.category}</div>
+                        <div className="flex items-center gap-0.5 text-amber-500">
+                            <span className="text-lg font-bold">{latest.rating}</span>
+                            <Icons.Rating size={12} fill="currentColor" />
                         </div>
                      </div>
                 </div>
             ) : (
-                <div className="flex-1 flex items-center justify-center text-slate-300 text-xs">暂无评分</div>
+                <div className="flex-1 flex items-center justify-center text-slate-300 text-[10px]">暂无评分</div>
             )}
         </div>
       );
@@ -258,13 +258,13 @@ export const WidgetPreview: React.FC<{ widget: Widget }> = ({ widget }) => {
       const textColor = isLight ? 'text-slate-900' : 'text-white';
       
       return (
-        <div className="absolute inset-0 p-4 flex flex-col justify-between" style={{ backgroundColor: bgColor }}>
+        <div className="absolute inset-0 p-3 flex flex-col justify-between" style={{ backgroundColor: bgColor }}>
           <MinimalHeader icon={<Icons.Calendar />} title={data.eventName} color={isLight ? undefined : 'white'} />
           <div>
-            <div className={`text-6xl font-black tracking-tighter leading-none mb-1 ${textColor}`}>
+            <div className={`text-4xl font-black tracking-tighter leading-none mb-0.5 ${textColor}`}>
               {Math.abs(daysLeft)}
             </div>
-            <div className={`text-xs font-bold ${isLight ? 'text-slate-500' : 'text-white/60'}`}>
+            <div className={`text-[10px] font-bold ${isLight ? 'text-slate-500' : 'text-white/60'}`}>
               {isPast ? '已过去(天)' : '天后'}
             </div>
           </div>
@@ -280,27 +280,27 @@ export const WidgetPreview: React.FC<{ widget: Widget }> = ({ widget }) => {
            const textColor = isLight ? 'text-slate-900' : 'text-white';
 
            return (
-            <div className="absolute inset-0 p-4 flex flex-col justify-between" style={{ backgroundColor: widget.color }}>
+            <div className="absolute inset-0 p-3 flex flex-col justify-between" style={{ backgroundColor: widget.color }}>
                 <MinimalHeader icon={<Icons.LastDone />} title={widget.title} color={isLight ? undefined : 'white'} />
                 <div>
-                    <div className={`text-6xl font-black tracking-tighter leading-none mb-1 ${textColor}`}>
+                    <div className={`text-4xl font-black tracking-tighter leading-none mb-0.5 ${textColor}`}>
                         {daysSince}
                     </div>
-                    <div className={`text-xs font-bold ${isLight ? 'text-slate-500' : 'text-white/60'}`}>天前</div>
+                    <div className={`text-[10px] font-bold ${isLight ? 'text-slate-500' : 'text-white/60'}`}>天前</div>
                 </div>
             </div>
            );
       }
 
       return (
-        <div className="flex flex-col h-full justify-between p-4">
+        <div className="flex flex-col h-full justify-between p-3">
           <MinimalHeader icon={<Icons.LastDone />} title={widget.title} />
           <div className="flex-1 flex items-end justify-end">
              <div className="text-right">
-                <div className="text-5xl font-black text-emerald-600 tracking-tighter leading-none">
+                <div className="text-4xl font-black text-emerald-600 tracking-tighter leading-none">
                     {daysSince}
                 </div>
-                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">天前</div>
+                <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">天前</div>
              </div>
           </div>
         </div>
@@ -315,14 +315,14 @@ export const WidgetPreview: React.FC<{ widget: Widget }> = ({ widget }) => {
       const progress = totalCount === 0 ? 0 : (filledCount / totalCount) * 100;
 
       return (
-        <div className="flex flex-col h-full justify-between p-4">
+        <div className="flex flex-col h-full justify-between p-3">
            <MinimalHeader icon={<Icons.Plan />} title={widget.title} />
            <div className="flex-1 flex flex-col justify-end">
                 <div className="flex justify-between items-end mb-1">
-                    <span className="text-xs font-bold text-slate-400">今日</span>
-                    <span className="text-2xl font-black text-[var(--primary-color)]">{Math.round(progress)}%</span>
+                    <span className="text-[10px] font-bold text-slate-400">今日</span>
+                    <span className="text-lg font-black text-[var(--primary-color)]">{Math.round(progress)}%</span>
                 </div>
-                <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden">
                     <div className="h-full bg-[var(--primary-color)] transition-all duration-500" style={{ width: `${progress}%` }}></div>
                 </div>
            </div>
@@ -333,15 +333,15 @@ export const WidgetPreview: React.FC<{ widget: Widget }> = ({ widget }) => {
        const data = widget.data as { label: string; unit: string; points: DataPoint[] };
        const lastVal = data.points.length > 0 ? data.points[data.points.length - 1].value : 0;
        return (
-         <div className="flex flex-col h-full justify-between p-4 pb-0">
+         <div className="flex flex-col h-full justify-between p-3 pb-0">
            <MinimalHeader icon={<Icons.Data />} title={widget.title} />
            <div>
-               <div className="text-4xl font-black text-purple-600 tracking-tighter leading-none truncate -ml-1">{lastVal}<span className="text-sm ml-1 text-slate-400 font-medium">{data.unit}</span></div>
+               <div className="text-3xl font-black text-purple-600 tracking-tighter leading-none truncate -ml-0.5">{lastVal}<span className="text-[10px] ml-0.5 text-slate-400 font-medium">{data.unit}</span></div>
            </div>
-            <div className="h-12 w-full -mx-4 -mb-2 opacity-60">
+            <div className="h-10 w-full -mx-3 -mb-1 opacity-60">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={data.points.slice(-5)}>
-                  <Line type="monotone" dataKey="value" stroke="#9333ea" strokeWidth={3} dot={false} />
+                  <Line type="monotone" dataKey="value" stroke="#9333ea" strokeWidth={2} dot={false} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -354,17 +354,17 @@ export const WidgetPreview: React.FC<{ widget: Widget }> = ({ widget }) => {
         const count = data.items?.length || 0;
         
         return (
-            <div className="flex flex-col h-full p-4 bg-yellow-50 justify-between">
+            <div className="flex flex-col h-full p-3 bg-yellow-50 justify-between">
                 <MinimalHeader icon={<Icons.NoteWidget />} title={widget.title} />
                 <div className="flex-1 overflow-hidden relative">
                     {latestNote ? (
-                         <div className="text-xs text-slate-600 font-medium leading-relaxed line-clamp-3 whitespace-pre-wrap" dangerouslySetInnerHTML={{__html: latestNote.content}}></div>
+                         <div className="text-[11px] text-slate-600 font-medium leading-relaxed line-clamp-3 whitespace-pre-wrap" dangerouslySetInnerHTML={{__html: latestNote.content}}></div>
                     ) : (
-                        <p className="text-xs text-slate-400 italic">空空如也...</p>
+                        <p className="text-[10px] text-slate-400 italic">空空如也...</p>
                     )}
                 </div>
                 {count > 0 && (
-                    <div className="text-[10px] text-slate-400 text-right mt-1">{count} 条笔记</div>
+                    <div className="text-[9px] text-slate-400 text-right mt-0.5">{count} 条笔记</div>
                 )}
             </div>
         )
@@ -507,7 +507,7 @@ export const ListFull: React.FC<FullViewProps> = ({ widget, updateWidget, isSele
             
             {/* Random Result Modal */}
             {randomItem && (
-                 <div className="absolute inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in" onClick={() => setRandomItem(null)}>
+                 <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in" onClick={() => setRandomItem(null)}>
                      <div className="bg-white w-full rounded-2xl p-6 shadow-2xl animate-in zoom-in-95 text-center" onClick={e => e.stopPropagation()}>
                          <div className="w-16 h-16 bg-[var(--primary-color)] rounded-full flex items-center justify-center mx-auto mb-4 text-white shadow-lg animate-bounce">
                              <Icons.Shuffle size={32} />
@@ -588,12 +588,12 @@ export const RatingFull: React.FC<FullViewProps> = ({ widget, updateWidget, isSe
             </div>
             {isSelectionMode && (<div className="absolute bottom-4 left-4 right-4 z-20"><div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-3 flex justify-around items-center"><button onClick={deleteSelected} disabled={selectedIds.size === 0} className="flex flex-col items-center gap-1 text-red-500 disabled:opacity-50 text-[10px] font-bold"><Icons.Delete size={18}/> 删除</button><button onClick={moveSelected} disabled={selectedIds.size === 0} className="flex flex-col items-center gap-1 text-slate-600 disabled:opacity-50 text-[10px] font-bold"><Icons.Dashboard size={18}/> 分类</button></div></div>)}
             {!isSelectionMode && (<div className="absolute bottom-6 right-6 z-10"><button onClick={() => { setEditingItem(null); setTitle(''); setRating(0); setCover(''); setReview(''); setShowAddModal(true); }} className="w-14 h-14 bg-[var(--primary-color)] text-white rounded-full shadow-lg flex items-center justify-center hover:scale-105 active:scale-95 transition"><Icons.Plus size={28} /></button></div>)}
-            {viewingItem && (<div className="absolute inset-0 z-30 bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in" onClick={() => setViewingItem(null)}><div className="bg-white w-full rounded-2xl overflow-hidden shadow-2xl animate-in zoom-in-95 max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>{viewingItem.cover ? (<div className="w-full aspect-[3/4] max-h-[50vh] bg-slate-100 relative"><img src={viewingItem.cover} className="w-full h-full object-cover" /><div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex flex-col justify-end p-4 text-white"><h3 className="text-xl font-bold leading-tight">{viewingItem.title}</h3><div className="flex items-center gap-1 text-amber-400 mt-1"><span className="font-bold">{viewingItem.rating}</span><Icons.Rating size={16} fill="currentColor" /><span className="text-xs text-white/70 ml-2 px-2 py-0.5 bg-white/20 rounded-full backdrop-blur-md">{viewingItem.category}</span></div></div></div>) : (<div className="p-6 pb-2"><h3 className="text-xl font-bold text-slate-800 leading-tight">{viewingItem.title}</h3><div className="flex items-center gap-1 text-amber-400 mt-1"><span className="font-bold">{viewingItem.rating}</span><Icons.Rating size={16} fill="currentColor" /><span className="text-xs text-slate-400 ml-2 px-2 py-0.5 bg-slate-100 rounded-full">{viewingItem.category}</span></div></div>)}<div className="p-6 overflow-y-auto flex-1 text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">{viewingItem.review || <span className="italic text-slate-300">暂无评价...</span>}</div></div></div>)}
+            {viewingItem && (<div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in" onClick={() => setViewingItem(null)}><div className="bg-white w-full rounded-2xl overflow-hidden shadow-2xl animate-in zoom-in-95 max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>{viewingItem.cover ? (<div className="w-full aspect-[3/4] max-h-[50vh] bg-slate-100 relative"><img src={viewingItem.cover} className="w-full h-full object-cover" /><div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex flex-col justify-end p-4 text-white"><h3 className="text-xl font-bold leading-tight">{viewingItem.title}</h3><div className="flex items-center gap-1 text-amber-400 mt-1"><span className="font-bold">{viewingItem.rating}</span><Icons.Rating size={16} fill="currentColor" /><span className="text-xs text-white/70 ml-2 px-2 py-0.5 bg-white/20 rounded-full backdrop-blur-md">{viewingItem.category}</span></div></div></div>) : (<div className="p-6 pb-2"><h3 className="text-xl font-bold text-slate-800 leading-tight">{viewingItem.title}</h3><div className="flex items-center gap-1 text-amber-400 mt-1"><span className="font-bold">{viewingItem.rating}</span><Icons.Rating size={16} fill="currentColor" /><span className="text-xs text-slate-400 ml-2 px-2 py-0.5 bg-slate-100 rounded-full">{viewingItem.category}</span></div></div>)}<div className="p-6 overflow-y-auto flex-1 text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">{viewingItem.review || <span className="italic text-slate-300">暂无评价...</span>}</div></div></div>)}
             {showAddModal && (<div className="absolute inset-0 z-20 bg-black/50 backdrop-blur-sm flex items-end justify-center sm:items-center p-4 animate-in fade-in"><div className="bg-white w-full rounded-2xl p-5 shadow-2xl animate-in slide-in-from-bottom-10 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}><div className="flex justify-between items-center mb-4"><h3 className="font-bold text-slate-800">{editingItem ? '编辑记录' : '记录书影音'}</h3><button onClick={() => setShowAddModal(false)} className="p-1 rounded-full bg-slate-100 text-slate-500"><Icons.Close size={20}/></button></div><div className="flex gap-4 mb-4"><div onClick={() => fileInputRef.current?.click()} className="w-24 h-32 bg-slate-100 rounded-lg flex flex-col items-center justify-center text-slate-400 cursor-pointer hover:bg-slate-200 transition shrink-0 overflow-hidden relative">{cover ? (<img src={cover} className="w-full h-full object-cover" alt="cover" />) : (<><Icons.Image size={24} /><span className="text-[10px] mt-1">封面</span></>)}<input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} /></div><div className="flex-1 space-y-3"><input className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none font-bold" placeholder="名称..." value={title} onChange={e => setTitle(e.target.value)} /><div><label className="text-[10px] font-bold text-slate-400 mb-1 block">分类</label><select value={category} onChange={e => setCategory(e.target.value)} className="w-full bg-slate-50 border border-slate-200 text-xs rounded-lg px-2 py-2 outline-none">{data.categories.map(c => <option key={c} value={c}>{c}</option>)}</select></div><div><label className="text-[10px] font-bold text-slate-400 mb-1 block">评分</label><div className="flex gap-1">{[1, 2, 3, 4, 5].map(v => (<button key={v} onClick={() => setRating(v)} className={`${rating >= v ? 'text-amber-400' : 'text-slate-200'}`}><Icons.Rating size={20} fill="currentColor" /></button>))}</div></div></div></div><textarea className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none mb-4 min-h-[80px]" placeholder="写点评价..." value={review} onChange={e => setReview(e.target.value)} /><button onClick={handleSave} className="w-full bg-[var(--primary-color)] text-white py-3 rounded-xl font-bold shadow-md">{editingItem ? '保存修改' : '保存记录'}</button></div></div>)}
             
             {/* Random Result Modal */}
             {randomItem && (
-                 <div className="absolute inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in" onClick={() => setRandomItem(null)}>
+                 <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in" onClick={() => setRandomItem(null)}>
                      <div className="bg-white w-full rounded-2xl p-6 shadow-2xl animate-in zoom-in-95 text-center flex flex-col items-center" onClick={e => e.stopPropagation()}>
                          <div className="w-16 h-16 bg-[var(--primary-color)] rounded-full flex items-center justify-center mb-4 text-white shadow-lg animate-bounce">
                              <Icons.Shuffle size={32} />
@@ -893,7 +893,7 @@ export const DataFull: React.FC<FullViewProps> = ({ widget, updateWidget }) => {
     );
 };
 
-export const NoteFull: React.FC<FullViewProps> = ({ widget, updateWidget, isSelectionMode, setIsSelectionMode }) => {
+export const NoteFull: React.FC<FullViewProps> = ({ widget, updateWidget, isSelectionMode, setIsSelectionMode, onImageClick }) => {
     const data = widget.data as { items: NotebookItem[] };
     const items = data.items || [];
     const [editingItem, setEditingItem] = useState<NotebookItem | null>(null);
@@ -957,7 +957,7 @@ export const NoteFull: React.FC<FullViewProps> = ({ widget, updateWidget, isSele
                 <div 
                     ref={editorRef}
                     contentEditable
-                    className="flex-1 w-full text-slate-800 placeholder-slate-400 outline-none bg-transparent text-sm leading-relaxed empty:before:content-['写点什么...'] empty:before:text-slate-300 [&>ul]:list-disc [&>ul]:pl-5"
+                    className="flex-1 w-full text-slate-800 placeholder-slate-400 outline-none bg-transparent text-sm leading-relaxed empty:before:content-['写点什么...'] empty:before:text-slate-300 [&>ul]:list-disc [&>ul]:pl-5 [&_img]:max-w-[25%] [&_img]:inline-block [&_img]:m-1 [&_img]:rounded-md"
                     dangerouslySetInnerHTML={{ __html: editingItem.id === 'new' ? '' : editingItem.content }}
                 />
             </div>
@@ -972,7 +972,16 @@ export const NoteFull: React.FC<FullViewProps> = ({ widget, updateWidget, isSele
                  {filteredItems.map(item => (
                      <div 
                         key={item.id} 
-                        onClick={() => { if(isSelectionMode) toggleSelection(item.id); else setEditingItem(item); }}
+                        onClick={(e) => { 
+                            const target = e.target as HTMLElement;
+                            if (target.tagName === 'IMG' && onImageClick) {
+                                e.stopPropagation();
+                                onImageClick((target as HTMLImageElement).src);
+                                return;
+                            }
+                            if(isSelectionMode) toggleSelection(item.id); 
+                            else setEditingItem(item); 
+                        }}
                         className={`bg-white p-4 rounded-xl border shadow-sm relative overflow-hidden active:scale-[0.99] transition-all ${isSelectionMode && selectedIds.has(item.id) ? 'ring-2 ring-[var(--primary-color)] bg-indigo-50/20 border-transparent' : 'border-slate-100'}`}
                      >
                         {isSelectionMode && (
@@ -980,7 +989,7 @@ export const NoteFull: React.FC<FullViewProps> = ({ widget, updateWidget, isSele
                                 {selectedIds.has(item.id) && <Icons.Check size={12} className="text-white" strokeWidth={3} />}
                             </div>
                         )}
-                        <div className="text-sm text-slate-700 leading-relaxed line-clamp-4 whitespace-pre-wrap" dangerouslySetInnerHTML={{__html: item.content}} />
+                        <div className="text-sm text-slate-700 leading-relaxed line-clamp-4 whitespace-pre-wrap [&_img]:max-w-[25%] [&_img]:inline-block [&_img]:m-1 [&_img]:rounded-md [&_img]:cursor-zoom-in" dangerouslySetInnerHTML={{__html: item.content}} />
                         <div className="mt-2 flex gap-1.5 flex-wrap">
                              {item.tags.map(t => <span key={t} className="text-[10px] bg-slate-50 text-slate-400 px-2 py-0.5 rounded-md font-medium">#{t}</span>)}
                         </div>
